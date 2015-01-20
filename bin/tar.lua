@@ -368,7 +368,7 @@ local function tarFiles(files, options, mode, ignoredObjects, isDirectoryContent
           assert(bytesToCopy >= 0, "Error: File grew while copying! Is it the output file?")
           if options.verbose then
             --update progress bar
-            progressBar:update(#block)
+            progressBar.update(#block)
           end
           if #block < BLOCK_SIZE then
             assert(target:write(("\0"):rep(BLOCK_SIZE - #block)))
@@ -379,7 +379,7 @@ local function tarFiles(files, options, mode, ignoredObjects, isDirectoryContent
         source:close()
         if options.verbose then
           --draw full progress bar
-          progressBar:finish()
+          progressBar.finish()
         end
         assert(bytesToCopy <= 0, "Error: Could not copy file!")
       end
@@ -462,14 +462,14 @@ local extractingExtractors = {
         target:close()
         if options.verbose then
           --draw full progress bar
-          progressBar:finish()
+          progressBar.finish()
         end
         --return nil to finish
         return nil
       else
         if options.verbose then
           --update progress bar
-          progressBar:update(#block)
+          progressBar.update(#block)
         end
         --continue
         return extractor
