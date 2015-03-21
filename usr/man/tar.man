@@ -1,0 +1,87 @@
+NAME
+  tar - tar archiver for OpenComputers
+
+SYNOPSIS
+  tar <function letter> [other options] FILES...
+
+DESCRIPTION
+  allows working with tar archives in OpenComputers
+  It supports the standard tar format + ustar extension.
+  (not every feature but enough for most uses)
+  
+  That makes it a nice tool to exchange multiple files and directories between OpenComputers and "real computers".
+  Tar a bunch of files, use pastebin / wget to transmit the archive and extract it at destination.
+  Since this program is also able to create tar archives it is possible in both directions!
+  
+  When you want read from / write to a file you have to use the option -f / --file.
+  It then uses the first file given as the archive.
+  Else it uses the primary Computronics tape drive. (with the archive starting at the current position)
+  
+  A function flag is required to indicate what you want to do with the archive.
+  Further options can be used to modify the behaviour of the program.
+  
+  By default the program does not print anything except errors.
+  Use --verbose to make it 'talk'!
+  
+  By default it overwrites every existing file.
+  Take care or use options like --keep-old-files!
+
+FUNCTION LETTERS
+  -c --create
+    create a new tar archive
+    
+  -r --append
+    append to the tar archive
+    (tape only unless io.open is going to support rb+ mode)
+    
+  -t --list
+    list contents of tar archive
+    
+  -x --extract --get
+    extract the archive to the current directory
+    
+  --help
+    show usage information
+    
+OTHER OPTIONS
+  -f --file
+    tell tar to use the first file parameter as a tar archive
+    (When creating an archive, it will be the output file.)
+    Without this option the primary tape drive is used instead.
+    
+  -h --dereference
+    follow symlinks (treating them as files / directories)
+    
+  --exclude=FILE1;FILE2
+    exclude a semicolon separated list of files
+    The archive file is automaticly excluded when writing to an archive.
+    When using the --dereference option it might be necessary to exclude the archive manually.
+    (i.e. when following a symlink directs the program to include the archive itself)
+    The program will throw an error if an input file grew while being copied to the archive.
+    (So it at least terminates when it tries to put the archive into itself.)
+    
+  -v --verbose
+    print out what the program is doing
+    If the library auto_progress is installed it also displays nice progress bars on large files.
+    
+  --keep-old-files
+    throw an error when extracting and an output file already exists
+  --skip-old-files
+    do not overwrite existing files, but continues without errors
+  --keep-newer-files
+    overwrite existing files only if they are older than the one within the archive
+  
+  --dir=DIR
+    change the reference directory i.e. to extract a tar file in a subdirectory
+    (The original tar option is "-C DIR". But shell.parse() does not support an option+parameter combination.)
+  
+EXAMPLES
+  tar --create --file all.tar / --exclude=/mnt
+    creates an archive 'all.tar' containing the whole file system except "/mnt".
+    
+  tar -xf -v another.tar
+    extracts the contents of 'another.tar' while showing the user what it's doing.
+    
+  tar -t
+    displays the contents of the tape archive.
+    The current position is read as the beginning of the archive.
