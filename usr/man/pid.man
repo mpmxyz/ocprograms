@@ -1,0 +1,50 @@
+NAME
+  pid - PID control for Minecraft
+  
+SYNOPSIS
+  pid [options] FILES... or IDs...
+  
+DESCRIPTION
+  Set up your PID controllers the easy way:
+  Just create a controller file, run "pid yourfile.pid" and its running in the background.
+  The file name of a controller is used as an ID when none is given in the file.
+  The program returns a list of all controllers loaded during execution.
+  
+OPTIONS
+  Without an option the given parameters are treated as controller files that are loaded and started.
+  
+  --load
+    only loads the files but does not start the controllers
+  --unload
+    stops and unregisters all controllers identified by the given IDs
+    
+  --start
+  --stop
+    These commands start and stop all given controllers
+  
+  --debug
+    enters debug mode - the most important parameters are displayed for each given controller
+    
+  
+EXAMPLES
+  pid reactor.pid
+    loads and starts the controller from file "reactor.pid"
+    It's assigned the ID "reactor.pid" unless there is an overriding assignment in the file.
+    
+  pid --load /pids/turbine.pid
+    loads the controller file "/pids/turbine.pid"
+    The controller is assigned the ID "turbine.pid" unless there is an overriding assignment in the file.
+
+  pid --start turbine.pid
+    starts the controller "turbine.pid"
+    
+  pid --debug reactor.pid turbine.pid
+    displays debug information of two controllers in one screen
+    Each controller needs 5 lines on the screen. Debug information isn't displayed if there isn't enough space left.
+    You can leave the debug screen by doing an interrupt. (Ctrl + Alt + C)
+    
+  pid --stop turbine.pid
+    stops the given controller
+    
+  pid --unload reactor.pid
+    stops and unregisters the controller

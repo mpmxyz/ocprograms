@@ -1,0 +1,55 @@
+local component = require("component")
+
+--extra property for direct turbine access
+turbine = component.br_turbine
+
+sensor = turbine.getRotorSpeed
+target = 1800
+
+--extra property to enable efficient idling with inductor==false
+inductor = "auto"
+
+--use inductor = "auto" to enable an on / off controller to only engage the inductor when it is needed
+inductor_auto = {
+  sensor = turbine.getEnergyStored,
+  min = 500000,
+  max = 500000,
+  state = true,
+}
+
+--extra property for emergency shutdown
+maxSafeRPM = 2000
+
+actuator = {
+  set = function(value)
+    --safety
+    if maxSafeRPM and turbine.getRotorSpeed() > maxSafeRPM then
+      --Emergency shutdown!
+      turbine.setActive(false)
+      value = 0
+    end
+    --efficiency
+    local finishedStartup = value < turbine.getFluidFlowRateMaxMax()-5
+    if inductor == "auto" then
+      local currentEnergy = inductor_auto.sensor()
+      if inductor_auto.state then
+        inductor_auto.state = currentEnergy < inductor_auto.max
+      else
+        inductor_auto.state = currentEnergy < inductor_auto.min
+      end
+      turbine.setInductorEngaged(inductor_auto.state and finishedStartup)
+    else
+      turbine.setInductorEngaged(inductor and finishedStartup)
+    end
+    turbine.setFluidFlowRateMax(value)
+  end,
+  get = turbine.getFluidFlowRateMax,
+  min = 0,
+  max = turbine.getFluidFlowRateMaxMax,
+}
+factors = {
+  p = -10,
+  i = -0.4,
+  d = -1,
+}
+frequency = 4
