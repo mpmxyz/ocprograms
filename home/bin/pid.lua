@@ -67,7 +67,7 @@ local function runMonitor(controllers, loadedIDs)
         printf("Current:  %+d", info.value)
         printf("Error:    %+d", info.error)
         printf("change/s: %s" , info.derror and ("%+d"):format(info.derror) or init)
-        printf("Offset:   %+d", info.offset)
+        printf("PID parts:%+d %+d %+d", info.error * (info.p + info.i * info.dt), info.offset, info.derror and info.derror * info.d or 0)
         printf("Output:   %s" , info.output and ("%+d"):format(info.output) or init)
         print()
       else
@@ -82,6 +82,7 @@ local function runMonitor(controllers, loadedIDs)
   end
 end
 
+
 --main function
 local function main(parameters, options)
   if #parameters == 0 then
@@ -94,6 +95,19 @@ Usage: pid [option] files or ids...
   --stop       stops the controllers with the given ids
   --debug      displays debug info of the controllers with the given ids
 ]])
+    return
+  end
+  if options.target then
+    assert(#parameters >= 1, "Usage: pid --target id [value]")
+    local id = parameters[1]
+    local newTarget = tonumber(parameters[2])
+    local controller = pid.get(id) or pid.get(stripDir(id))
+    assert(controller, "Controller not found!")
+    if newTarget then
+      controller.target = newTarget
+    else
+      print("Current Target:", controller.target)
+    end
     return
   end
   

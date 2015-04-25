@@ -96,7 +96,7 @@ end
     dt=number,              --current time interval between update cycles
     value=number,           --current sensor output
     target=number,          --current setpoint
-    error=value-target,     --current error (defined as the given difference)
+    error=target-value,     --current error (defined as the given difference)
     lastError=number,       --error of last cycle (used to calculate D term)
     offset=number,          --current offset, the value of the I term 
     doffset=i * error * dt, --change in offset (this cycle)
@@ -121,7 +121,7 @@ function pid.new(data, id, enable)
     local value        = getValue(data.sensor)
     local target       = getValue(data.target)
     --error(t)
-    local currentError = value - target
+    local currentError = target - value
     
     --some info values
     info.p  = p

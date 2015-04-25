@@ -3,6 +3,7 @@ NAME
   
 SYNOPSIS
   pid [options] FILES... or IDs...
+  pid --target ID [value]
   
 DESCRIPTION
   Set up your PID controllers the easy way:
@@ -25,7 +26,9 @@ OPTIONS
   --debug
     enters debug mode - the most important parameters are displayed for each given controller
     
-  
+  --target
+    If no value is given it displays the current target / setpoint for the given controller.
+    Else it sets the given value as the new target / setpoint of the controller.
 EXAMPLES
   pid reactor.pid
     loads and starts the controller from file "reactor.pid"
@@ -37,6 +40,9 @@ EXAMPLES
 
   pid --start turbine.pid
     starts the controller "turbine.pid"
+    
+  pid --target turbine.pid 900
+    reduces the speed of the turbine to 900 rpm
     
   pid --debug reactor.pid turbine.pid
     displays debug information of two controllers in one screen

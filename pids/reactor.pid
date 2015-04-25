@@ -7,17 +7,17 @@ if reactor.isActivelyCooled() then
   sensor = reactor.getHotFluidAmount
   target = reactor.getHotFluidAmountMax() / 2
   factors = {
-    p = 13/target,
-    i = 12/target,
-    d = 6/target,
+    p = -13/target,
+    i = -12/target,
+    d = -6/target,
   }
 else
   sensor = reactor.getEnergyStored
   target = 5000000--reactor.getEnergyStoredMax() / 2
   factors = {
-    p = 1500/target,
-    i = 200/target,
-    d = 400/target,
+    p = -1500/target,
+    i = -200/target,
+    d = -400/target,
   }
 end
 

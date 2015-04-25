@@ -48,8 +48,8 @@ actuator = {
   max = turbine.getFluidFlowRateMaxMax,
 }
 factors = {
-  p = -10,
-  i = -0.4,
-  d = -1,
+  p = 10,
+  i = 0.4,
+  d = 1,
 }
 frequency = 4
