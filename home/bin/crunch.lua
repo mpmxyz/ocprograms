@@ -12,7 +12,7 @@
 --**load libraries**--
 local parser = require("parser.main")
 local luaparser = require("parser.lua")
-local cache = require("cache").wrap
+local cache = require("mpm.cache").wrap
 
 --pcall require for compatibility with lua standalone
 local ok, shell = pcall(require, "shell")

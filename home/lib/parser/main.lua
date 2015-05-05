@@ -1,8 +1,8 @@
 
 --**load libraries**--
-local cache  = require("cache").wrap
-local sets   = require("sets")
-local setset = require("setset")
+local cache  = require("mpm.cache").wrap
+local sets   = require("mpm.sets")
+local setset = require("mpm.setset")
 local regex  = require("parser.regex")
 local automaton = require("parser.automaton")
 local merge  = automaton.merge

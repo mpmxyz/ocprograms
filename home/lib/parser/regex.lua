@@ -1,5 +1,5 @@
 
-local cache = require("cache").wrap
+local cache = require("mpm.cache").wrap
 local merge = require("parser.automaton").merge
 
 local regex = {}

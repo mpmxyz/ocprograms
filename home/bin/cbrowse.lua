@@ -100,104 +100,21 @@ DIMENSIONS:
 FOR LATER:
   display tables in content table as a serialized string?
 ]]
-local mem
-do
-  local computer = require("computer")
-  local mem_usage = function()
-    return computer.totalMemory() - computer.freeMemory()
-  end
-  local lastValue = mem_usage()
-  mem = setmetatable({
-    initial = mem_usage()
-  } , {
-    __call = function(t, name, from)
-      local newValue = mem_usage()
-      if from then
-        lastValue = t[from]
-      end
-      t[name] = (t[name] or (newValue - lastValue)) * 0.95 + (newValue - lastValue) * 0.05
-      lastValue = newValue
-      return t[name]
-    end
-  })
-end
-
-
 
 local component = require("component")
 local event     = require("event")
 local term      = require("term")
 local keyboard  = require("keyboard")
 local computer  = require("computer")
---TODO: use unicode for everything
 local unicode   = require("unicode")
 
-mem "libs"
---****OPTIONAL LIBRARIES****
---draw_buffer library: increases drawing speed
-local draw_buffer
-do
-  local ok
-  ok, draw_buffer = pcall(require, "utils.draw_buffer")
-  if not ok then
-    --library not available, create stub
-    draw_buffer = {}
-    function draw_buffer.new(gpu)
-      return setmetatable({
-        flush = function() end,
-        dirty = function() end,
-      } , {
-        __index = gpu,
-      })
-    end
-  end
-end
-mem "lib_buffer"
---component_filter library: allows intercepting GPU commands when executing code
-local component_filter
-do
-  local ok
-  ok, component_filter = pcall(require, "utils.component_filter")
-  if not ok then
-    component_filter = {
-      --the only used function
-      call = function(filters, f, ...)
-        return f(...)
-      end,
-    }
-  end
-end
-mem "lib_filter"
---config library: allows verifying the configuration
---also gives read only access to global variables
-local config
-do
-  local ok
-  ok, config = pcall(require, "utils.config")
-  if not ok then
-    config = {
-      --the only used function
-      load = function(file, format, default, env, autoTables)
-        local fs = require "filesystem"
-        --auto generate config
-        if not fs.exists(file) then
-          --create new file with <default> as content
-          local stream = io.open(file, "wb")
-          stream:write(default)
-          stream:close()
-        end
-        --not supported: custom environment
-        local cfg = {}
-        local func = assert(loadfile(file, "t", cfg))
-        func()
-        --not supported: configuration check
-        return cfg
-      end, 
-    }
-  end
-end
+local cache            = require("mpm.cache")
+local tables           = require("mpm.tables")
+local draw_buffer      = require("mpm.draw_buffer")
+local component_filter = require("mpm.component_filter")
+local config           = require("mpm.config")
 
-mem "lib_config"
+
 --****DEBUG****
 local function interruptedTraceback(message)
   if message == "interrupted" or type(message) ~= "string" then
@@ -217,7 +134,7 @@ local function userAssert(check, err)
     userError(err)
   end
 end
-mem "debug"
+
 --****CONFIG****
 
 local defaultConfig = [[
@@ -324,7 +241,6 @@ sortedKeys = {
   "string",
   "number",
 }
-
 ]]
 
 local checkAllTypes = [[
@@ -408,83 +324,42 @@ local configFormat = {
   },
 }
 
-
-local CONFIG = config.load("/etc/cbrowse.cfg", configFormat, defaultConfig, _ENV, true)
-
---config validation
-mem "config"
---****EASY CACHING****
---cache(function(key) - > value) - > (table[key] - > value)
---returns a cache table as a proxy to the given function
-local function cache(func)
-  local cache_table = setmetatable({}, {
-    --generates missing keys
-    __index = function(table, key)
-      local value = func(key)
-      table[key] = value
-      return value
-    end,
-    --redirecting calls...
-    __call = function(table, key)
-      return table[key]
-    end,
-  })
-  return cache_table
-end
-mem "cache"
---****VALUES AND TYPES****
-local types_callable = {
-  ["function"] = true,
-  ["table"] = true,--due to component wrappers...
-}
-local types_indexable = {
-  ["table"] = true,
-  ["userdata"] = true,
-}
-local types_value = {
-  ["function"] = true,
-  ["table"] = true,
-  ["number"] = true,
-}
---supports using functions as values
-local function getValue(value, index)
-  if types_indexable[type(value)] and index ~= nil then
-    value = value[index]
-    --what about callable tables?
-  elseif types_callable[type(value)] then
-    value = value()
-  end
-  return value
-end
-
-local configDictionary = cache(
-  function(availableWidth)
-    local best, bestWidth = nil, 0
-    for _, dict in pairs (CONFIG.dictionaries) do
-      if dict.requiredWidth <= availableWidth then
-        if dict.requiredWidth > bestWidth then
-          best = dict
-          bestWidth = best.requiredWidth
+local CONFIG
+local configDictionary, configColors
+local function loadConfig()
+  CONFIG = config.load("/etc/cbrowse.cfg", configFormat, defaultConfig, _ENV, true)
+  
+  configDictionary = cache.wrap(
+    function(availableWidth)
+      local best, bestWidth = nil, 0
+      for _, dict in pairs (CONFIG.dictionaries) do
+        if dict.requiredWidth <= availableWidth then
+          if dict.requiredWidth > bestWidth then
+            best = dict
+            bestWidth = best.requiredWidth
+          end
         end
       end
+      return best
     end
-    return best
-  end
-)
-local configColors = cache(
-  function(availableDepth)
-    local best, bestDepth = nil, 0
-    for _, colors in pairs(CONFIG.colors) do
-      if colors.requiredDepth <= availableDepth then
-        if colors.requiredDepth > bestDepth then
-          best = colors
-          bestDepth = best.requiredDepth
+  )
+  configColors = cache.wrap(
+    function(availableDepth)
+      local best, bestDepth = nil, 0
+      for _, colors in pairs(CONFIG.colors) do
+        if colors.requiredDepth <= availableDepth then
+          if colors.requiredDepth > bestDepth then
+            best = colors
+            bestDepth = best.requiredDepth
+          end
         end
       end
+      return best
     end
-    return best
-  end
-)
+  )
+end
+loadConfig()
+
 local function getValueColor(colors, value)
   return (value ~= nil) and colors.value[value] or colors.type[type(value)] or colors.default
 end
@@ -492,8 +367,18 @@ local function getTypeColor(colors, typ)
   return colors.type[typ] or colors.default
 end
 
-mem "values"
+
 --****INDEXING****
+local reserved_keywords = {}
+for _, keyword in ipairs{
+    "and", "break", "do", "else", "elseif", "end",
+    "false", "for", "function", "goto", "if", "in",
+    "local", "nil", "not", "or", "repeat", "return",
+    "then", "true", "until", "while",
+  } do
+  reserved_keywords[keyword] = true
+end
+
 local index_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 --maps number indices to the string indices used for the ID column
 --that way you can access >2500 objects instead of just 100 with 2 characters
@@ -539,7 +424,7 @@ local string_indices = setmetatable({}, {
     end    
   end,
 })
-mem "index"
+
 --****REGISTRY****
 local REG_PREFIXES = {
   ["function"] = "f",
@@ -584,7 +469,29 @@ local function getDisplayedString(object)
   end
 end
 
-mem "registry"
+local identifierPattern = "[%a_][%a%d_]*"
+local function isValidIdentifier(object)
+  if type(object) ~= "string" then
+    return false
+  end
+  return object:match("^"..identifierPattern.."$") ~= nil and not reserved_keywords[object]
+end
+
+local function getDisplayedIndex(object, prefix)
+  if object == nil then
+    return nil
+  end
+  if isValidIdentifier(object) then
+    if prefix then
+      return prefix.."."..object
+    else
+      return object
+    end
+  end
+  prefix = prefix or ""
+  return prefix.."["..getDisplayedString(object).."]"
+end
+
 
 
 --****ENVIRONMENTS****
@@ -629,6 +536,9 @@ local function read_only(t, text)
           return i, v
         end
       end, self, 0
+    end,
+    __len = function(self)
+      return #t
     end,
   })
 end
@@ -698,27 +608,6 @@ local function localEnvironment(object, keys, values)
   return env
 end
 
-local identifierPattern = "[%a_][%a%d_]*"
-local function isValidIdentifier(object)
-  if type(object) ~= "string" then
-    return false
-  end
-  return object:match("^"..identifierPattern.."$") ~= nil
-end
-local function getDisplayedIndex(object, prefix)
-  if object == nil then
-    return nil
-  end
-  if isValidIdentifier(object) then
-    if prefix then
-      return prefix.."."..object
-    else
-      return object
-    end
-  end
-  prefix = prefix or ""
-  return prefix.."["..getDisplayedString(object).."]"
-end
 
 local searchedOverrideNames = {
  "_OBJ", "_K", "_G",
@@ -743,7 +632,7 @@ local function findEnvironmentIndex(object, environment)
     end
   end
 end
-mem "environment"
+
 --****OBJECT LOADING****
 local function loadKeyValues(object, fillNil)
   --Number keys are added last to make large arrays easier to look through.
@@ -878,254 +767,14 @@ local function loadObject(typ, ...)
   return obj
 end
 
-mem "objects"
---****TABLES****
-local function createTable(tab)
-  tab = tab or {}
-  --layout:
-  --  dynamic width given with positive weight values
-  --  constant width given with negative values
-  function tab.setLayout(newLayout)
-    tab.layout = newLayout or {1}
-    tab.totalWeight = 0
-    tab.sumConstWidth = 0
-    for i, width in ipairs(tab.layout) do
-      if width > 0 then
-        tab.totalWeight = tab.totalWeight + width
-      elseif width < 0 then
-        tab.sumConstWidth = tab.sumConstWidth - width
-      else
-        error("Zero column width!")
-      end
-    end
-  end
-  function tab.setColor(foreground, background)
-    tab.foreground = foreground or 0xFFFFFF
-    tab.background = background or 0x000000
-  end
-  function tab.setAlignment(alignment, padding)
-    tab.alignment = alignment or "l"
-    tab.padding   = padding or " "
-  end
-  function tab.setSeparator(separator)
-    tab.separator = separator or ""
-  end
-  function tab.add(line)
-    tab[#tab + 1] = line
-  end
-  function tab.getColumnWidths(totalWidth)
-    --calculate column sizes...
-    local ncolumns = #tab.layout
-    local variableWidth = totalWidth - tab.sumConstWidth - #tab.separator * (ncolumns - 1)
-    local widthPerWeight = tab.totalWeight > 0 and (variableWidth / tab.totalWeight) or 0
-    if widthPerWeight < 0 then
-      --not enough space to draw...
-      return nil, tab.sumConstWidth
-    end
-    local columnWidths = {}
-    local carriedWidth = 0
-    for column, width in ipairs(tab.layout) do
-      if width > 0 then
-        local rawWidth = width * widthPerWeight
-        carriedWidth = carriedWidth + (rawWidth % 1)
-        if carriedWidth >= 1 then
-          --if there is a chance for carriedWidth to become 0.999... instead of one
-          --change carriedWidth >= 1 to carriedWidth >= 0.999
-          rawWidth = rawWidth + 1
-          carriedWidth = carriedWidth - 1
-        end
-        columnWidths[column] = math.floor(rawWidth)
-      else
-        columnWidths[column] = - width
-      end
-    end
-    return columnWidths, tab.sumConstWidth
-  end
-  --x_relative is 0 based (x_relative == 0 -> tested x == table x)
-  function tab.getColumn(x_relative, width)
-    local columnWidths, minimumWidth = tab.getColumnWidths(width)
-    if columnWidths == nil then
-      return nil
-    end
-    if x_relative < 0 then
-      return nil
-    end
-    for column, columnWidth in ipairs(columnWidths) do
-      x_relative = x_relative - columnWidth
-      if x_relative < 0 then
-        return column
-      end
-      x_relative = x_relative - #tab.separator
-    end
-    return nil
-  end
-  --y_relative is 0 based (y_relative == 0 -> tested x == table x)
-  function tab.getRow(y_relative, height, scrollY)
-    if y_relative < 0 or y_relative >= height then
-      return nil
-    end
-    local index = y_relative + scrollY + 1
-    if tab[index] ~= nil then
-      return index
-    end
-  end
-  function tab.getFormattedCellContent(line, column, columnWidth)
-    local cellContent = line[column] or ""
-    local alignment  = getValue(line.alignment , column) or getValue(tab.alignment , column)
-    local padding    = getValue(line.padding   , column) or getValue(tab.padding   , column)
-    
-    local extendingAlignment, shorteningAlignment = alignment:match("([lrc])([alr]?)")
-    assert(extendingAlignment, "Invalid Alignment!")
-    if shorteningAlignment == "" then
-      assert(extendingAlignment ~= "c", "Can't use 'c' alignment for shortening!")
-      shorteningAlignment = extendingAlignment
-    end
-    
-    local autoScroller
-    --adjust content to perfectly fit
-    if #cellContent > columnWidth then
-      --content too long: shorten it
-      if shorteningAlignment == "a" then
-        local originalContent = cellContent
-        autoScroller = function(gpu, x,y, foreground, background)
-          local scrollX = 0
-          local maxScrollX = #originalContent - columnWidth
-          local scrollXStep = math.min(math.max(math.floor(columnWidth / 2), 1), 5)
-          return function()
-            if scrollX < maxScrollX then
-              scrollX = math.min(scrollX + scrollXStep, maxScrollX)
-            else
-              scrollX = 0
-            end
-            gpu.setForeground(foreground)
-            gpu.setBackground(background)
-            gpu.set(x, y, originalContent:sub(1 + scrollX, columnWidth + scrollX))
-          end
-        end
-      end
-      --shorten it
-      if shorteningAlignment == "l" or shorteningAlignment == "a" then
-        cellContent = cellContent:sub(1, columnWidth)
-      elseif shorteningAlignment == "r" then
-        cellContent = cellContent:sub( -columnWidth, -1)
-      end
-    elseif #cellContent < columnWidth then
-      --content too large: add padding
-      local addition = columnWidth - #cellContent
-      if extendingAlignment == "l" then
-        cellContent = cellContent .. padding:rep(addition)
-      elseif extendingAlignment == "r" then
-        cellContent = padding:rep(addition) .. cellContent
-      elseif extendingAlignment == "c" then
-        cellContent = padding:rep(math.floor(addition / 2)) .. 
-                      cellContent ..
-                      padding:rep(math.ceil(addition / 2))
-      end
-    end
-    return cellContent, autoScroller
-  end
-  function tab.draw(gpu, x,y, width, height, scrollY)
-    --assuming that a table is never drawn twice, we can delete known scrolling updaters
-    tab.autoScrollers = {}
-    --how much space is each column going to have?
-    local columnWidths, minimumWidth = tab.getColumnWidths(width)
-    if columnWidths == nil then
-      gpu.setForeground(tab.foreground)
-      gpu.setBackground(tab.background)
-      gpu.fill(x, y,width, height, tab.padding)
-      local msg = ""
-      for draw_y = y, y + height - 1 do
-        if msg == "" then
-          msg = ("width>"..minimumWidth.."!")
-        end
-        gpu.set(x, draw_y, msg:sub(1, width))
-        msg = msg.sub(width + 1, - 1)
-      end
-      return
-    end
-    --drawing loop
-    local separatorSpaces = (" "):rep(#tab.separator) --draw_buffer optimization: connecting spaces
-    local draw_y = y
-    scrollY = scrollY or 0
-    for index = scrollY + 1, scrollY + height do
-      local line = tab[index]
-      if line then
-        local draw_x = x
-        for column, columnWidth in ipairs(columnWidths) do
-          if columnWidth > 0 then
-            --get colors and formatting
-            local foreground = getValue(line.foreground, column) or getValue(tab.foreground, column)
-            local background = getValue(line.background, column) or getValue(tab.background, column)
-            gpu.setForeground(foreground)
-            gpu.setBackground(background)
-            --gets displayed string and a callback generator
-            local cellContent, autoScroller = tab.getFormattedCellContent(line, column, columnWidth)
-            --draw_buffer optimization: create connecting spaces
-            if columnWidths[column + 1] and tab.separator ~= "" then
-              cellContent = cellContent .. separatorSpaces
-            end
-            --draw
-            gpu.set(draw_x, draw_y, cellContent)
-            --remember scrolling callback
-            if autoScroller then
-              table.insert(tab.autoScrollers, autoScroller(gpu, draw_x, draw_y, foreground, background))
-            end
-            --move right
-            draw_x = draw_x + columnWidth + #tab.separator
-          end
-        end
-      else
-        --simple background
-        local draw_x = x
-        for column, columnWidth in ipairs(columnWidths) do
-          gpu.setForeground(getValue(tab.foreground, column))
-          gpu.setBackground(getValue(tab.background, column))
-          local padding = getValue(tab.empty or tab.padding, column)
-          gpu.fill(draw_x, draw_y, columnWidth, height - (draw_y - y), padding)
-          draw_x = draw_x + columnWidth + #tab.separator
-        end
-        break
-      end
-      draw_y = draw_y + 1
-    end
-    --draw separators last to allow combining rows to a single drawing call
-    if tab.separator ~= "" then
-      local draw_x = x
-      for column, columnWidth in ipairs(columnWidths) do
-        gpu.setForeground(getValue(tab.foreground, column))
-        gpu.setBackground(getValue(tab.background, column))
-        if column > 1 then
-          for char in tab.separator:gmatch(".") do
-            gpu.fill(draw_x, y,1, height, char)
-            draw_x = draw_x + 1
-          end
-        end
-        draw_x = draw_x + columnWidth
-      end
-    end
-  end
-  function tab.updateScrollingCallbacks()
-    if tab.autoScrollers then
-      for _, callback in ipairs(tab.autoScrollers) do
-        callback()
-      end
-    end
-  end
-  --add convenience to the constructor
-  tab.setLayout(tab.layout)
-  tab.setColor(tab.foreground, tab.background)
-  tab.setAlignment(tab.alignment, tab.padding)
-  tab.setSeparator(tab.separator)
-  return tab
-end
-mem "tables"
+
 --****VIEWS****
 --views are reloaded, when there is a screen width change
 local views = {
   ["table"] = function(obj, context)
     local dictionary  = context.dictionary
     local colors  = context.colors
-    local content = createTable{
+    local content = tables.create{
       layout = { -dictionary.width, 1, -2, -dictionary.width, 1},
       alignment = {"l", "la", "r", "l", "la"},
       empty = " ",
@@ -1146,19 +795,19 @@ local views = {
         background = bgColor,
       }
     end
-    local tables = {
-      createTable{
+    local viewTables = {
+      tables.create{
         {obj.path},
         alignment = "la",
         height = 1,
       },
-      createTable{
+      tables.create{
         {"Keys", "|  |", "Values"},
         layout    = {  1, - 4,  1},
         alignment = "cl",
         height = 1,
       },
-      createTable{
+      tables.create{
                  {dictionary.type, "|", "value", "|ID|", dictionary.type, "|", "value"},
                  {""             , "+", ""     , "+--+", ""             , "+", "",
                    padding = "-",
@@ -1168,7 +817,7 @@ local views = {
         height = 2,
       },
       content,
-      createTable{
+      tables.create{
                  {""             , "+", ""     , "+--+", ""             , "+", ""},
         layout = { -dictionary.width, -1, 1, -4, -dictionary.width, -1, 1},
         alignment = "l",
@@ -1176,12 +825,12 @@ local views = {
         height = 1,
       },
     }
-    return tables, content
+    return viewTables, content
   end,
   ["list"] = function(obj, context)
     local dictionary  = context.dictionary
     local colors  = context.colors
-    local content = createTable{
+    local content = tables.create{
       layout = { -2, -dictionary.width, 1},
       empty = " ",
       index = {nil, "_V", "_V"},
@@ -1199,13 +848,13 @@ local views = {
         background = bgColor,
       }
     end
-    local tables = {
-      createTable{
+    local viewTables = {
+      tables.create{
         {obj.path},
         alignment = "la",
         height = 1,
       },
-      createTable{
+      tables.create{
                  {"ID|", dictionary.type, "|", "value"},
                  {"--+", ""             , "+", "",
                    padding = "-",
@@ -1215,7 +864,7 @@ local views = {
         height = 2,
       },
       content,
-      createTable{
+      tables.create{
                  {"--+", "","+",""},
         layout = { -3, -dictionary.width, -1, 1},
         padding = "-",
@@ -1223,12 +872,12 @@ local views = {
         height = 1,
       },
     }
-    return tables, content    
+    return viewTables, content    
   end,
   ["string"] = function(obj, context)
     local colors  = context.colors
     local typeColor = getTypeColor(colors, "string")
-    local content = createTable{
+    local content = tables.create{
       alignment = "l",
       layout = {1, -1},
       foreground = {typeColor, 0xFF0000},
@@ -1238,17 +887,18 @@ local views = {
     for _, line in ipairs(obj.lines) do
       --line wrapping
       local writtenPerStep = math.max(context.width - 1, 1)
-      for fromIndex = 1, #line, writtenPerStep do
+      local lineLength = unicode.len(line)
+      for fromIndex = 1, lineLength, writtenPerStep do
         local bgColor = colors.background.content[((index - 1) % #colors.background.content) + 1]
-        part = line:sub(fromIndex, fromIndex + writtenPerStep - 1)
+        part = unicode.sub(line, fromIndex, fromIndex + writtenPerStep - 1)
         content.add{
-          part, (fromIndex + writtenPerStep < #line) and ">" or " ",
+          part, (fromIndex + writtenPerStep < lineLength) and ">" or " ",
         }
         index = index + 1
       end
     end
-    local tables = {
-      createTable{
+    local viewTables = {
+      tables.create{
         {obj.path},
         {"",
           padding = "-",
@@ -1257,14 +907,14 @@ local views = {
         height = 2,
       },
       content,
-      createTable{
+      tables.create{
         {""},
         padding = "-",
         alignment = "l",
         height = 1,
       },
     }
-    return tables, content    
+    return viewTables, content    
   end,
 }
 local function initView(obj, context)
@@ -1274,17 +924,17 @@ local function initView(obj, context)
   end
   ---common loading code
   local view = {}
-  local tables, content = viewLoader(obj, context)
+  local viewTables, content = viewLoader(obj, context)
   --positioning of tables
   local totalHeight = 0
-  for _, tab in ipairs(tables) do
+  for _, tab in ipairs(viewTables) do
     totalHeight = totalHeight + (tab.height or 0)
   end
   content.height = context.height - totalHeight
   --calculate scrolling boundary
   view.maxScrollY = math.max(#content - content.height, 0)
   local y = 1
-  for _, tab in ipairs(tables) do
+  for _, tab in ipairs(viewTables) do
     tab.y = y
     y = y + tab.height
   end
@@ -1292,7 +942,7 @@ local function initView(obj, context)
   function view.draw(scrollY)
     local gpu = context.gpu
     gpu.dirty()
-    for _, tab in ipairs(tables) do
+    for _, tab in ipairs(viewTables) do
       tab.draw(gpu, 1,tab.y, context.width, tab.height, tab == content and scrollY or 0)
     end
     gpu.setForeground(context.colors.default)
@@ -1316,7 +966,7 @@ local function initView(obj, context)
   function view.updateScrollingCallbacks()
     local gpu = context.gpu
     gpu.dirty()
-    for _, tab in ipairs(tables) do
+    for _, tab in ipairs(viewTables) do
       tab.updateScrollingCallbacks()
     end
     gpu.setForeground(context.colors.default)
@@ -1357,7 +1007,7 @@ local function initView(obj, context)
   end
   return view
 end
-mem "views"
+
 --****GPU FILTERING****
 local function catchGPUAccess(...)
   --This function executes the given function while monitoring the primary gpu for any access.
@@ -1470,7 +1120,7 @@ local function catchGPUAccess(...)
       local gpu = draw_buffer.new(component.gpu)
       local width, height = gpu.getResolution()
       local msg = "Press any key..."
-      local originalContent = readFrontbuffer(gpu, 1,height, #msg)
+      local originalContent = readFrontbuffer(gpu, 1, height, unicode.len(msg))
       local showMessage = true
       local timerID = event.timer(1.5, function()
         local width, height = gpu.getResolution()
@@ -1503,7 +1153,7 @@ local function catchGPUAccess(...)
   end
   return waitForKeyboardIfTouched(component_filter.call(filters, ...))
 end
-mem "gpu_filter"
+
 --****COMMAND LINE****
 local shell = require("shell")
 local function runCommand(cmd, environment)
@@ -1524,9 +1174,7 @@ local function runCommand(cmd, environment)
 end
 
 
-mem "commands"
 --****BROWSING****
-
 local browseValue, browseList
 local function browse(typ, pathName, ...)
   local loadedObject, view, context
@@ -1686,9 +1334,10 @@ local function browse(typ, pathName, ...)
           environmentName = nil
         end
         if type(index) == "string" then
+          --limitting the displayed index size
           index = index:match("^[^\r\n]*")
-          if #index > 32 then
-            index = index:sub(1, 32)
+          if unicode.len(index) > 32 then
+            index = unicode.sub(index, 1, 32)
           end
         end
         path = path .. "/" .. (getDisplayedIndex(index, environmentName) or (cmd))
@@ -1710,28 +1359,52 @@ local function browse(typ, pathName, ...)
     end
   end
   --term.read hints
-  local function getHint(line,cursor)
+  local function getHint(line, cursor)
     if loadedObject.keys == nil then
       return nil
     end
-    local firstCode = line:sub(1, cursor - 1)
-    local nextCode = line:sub(cursor, -1)
-    --TODO: check part before dot?
+    local firstCode = unicode.sub(line, 1, cursor - 1)
+    local nextCode = unicode.sub(line, cursor, -1)
     local previousCode, searchFilter = firstCode:match("^(.-)("..identifierPattern..")$")
     if not previousCode then
       --no preexisting identifier part
       return nil
     end
+    local parentObject = loadedObject.object
+    do
+      --checking part before dot (current object only)
+      local prefix, parents = previousCode, {}
+      while prefix and prefix ~= "" do
+        local key
+        prefix, key = prefix:match("^(.-)("..identifierPattern..")%.$")
+        if key then
+          parents[#parents + 1] = key
+        end
+      end
+      for i = #parents, 1, -1 do
+        local key = parents[i]
+        if not isValidIdentifier(key) then
+          return nil
+        end
+        parentObject = parentObject[key]
+        if parentObject == nil then
+          return nil
+        end
+      end
+    end
     local list = {}
-    for _,key in ipairs(loadedObject.keys) do
-      if type(key) == "string" then
-        if #key > #searchFilter then
-          if key:find(searchFilter,1,true) == 1 then
+    local searchedLength = unicode.len(searchFilter)
+    for key in pairs(parentObject) do
+      if type(key) == "string" and isValidIdentifier(key) then
+        if unicode.len(key) > searchedLength then
+          --compare prefix of key to already typed value
+          if unicode.sub(key, 1, searchedLength) == searchFilter then
             table.insert(list, previousCode .. key .. nextCode)
           end
         end
       end
     end
+    table.sort(list)
     if list[1] then
       return list
     else
@@ -1810,7 +1483,6 @@ browseList = function(pathName, ...)
   return browse("list", pathName, ...)
 end
 
-mem "browsing"
 --****MAIN****
 
 local parameters, options = shell.parse(...)
@@ -1874,24 +1546,49 @@ if doListing then
   local filesystem = require("filesystem")
   libraries = {}
   --find libraries in files
-  local function addLibs(path)
-    local dir, prefix, ext = path:match("^(.-)([^/]*)%?([^/]*)$")
+  local libFiles = {}--absolute path -> library (
+  local function addLibrary(name, path)
+    local oldName = libFiles[path]
+    if oldName == nil or #name < #oldName then
+      libFiles[path] = name
+    end
+  end
+  local function addLibs(path, dir, prefix, ext, subPath, libPrefix)
+    if path then
+      dir, prefix, ext, subPath = path:match("^(.-)([^/]*)%?([^/]*)(.-)$")
+      libPrefix = ""
+    end
     --don't search working dir
     if dir and prefix and ext and dir ~= "./" and dir ~= "" then
       for file in filesystem.list(dir) do
-        --don't require directories
-        if file:sub(-1, -1) ~= "/" then
-          local libname = file:gsub(ext.."$", ""):gsub("^"..prefix,"")
-          local ok, lib = pcall(require, libname)
-          libraries[libname] = lib
-        else
-          --TODO: recursive search
+        if file:sub(1, #prefix) == prefix then
+          if file:sub(-#ext, -1) == ext then
+            local libname = libPrefix .. file:sub(#prefix + 1, -#ext - 1)
+            local absolutePath = dir .. file .. subPath:sub(2, -1)
+            if absolutePath:sub(1, 1) ~= "/" then
+              absolutePath = fs.concat(os.getenv("PWD") or "/", absolutePath)
+            end
+            if filesystem.exists(absolutePath) and not filesystem.isDirectory(absolutePath) then
+              addLibrary(libname, absolutePath)
+            end
+          end
+        end
+        if file:sub(-1, -1) == "/" then
+          --directory: recursion
+          --(expects "dir" to end with a slash if it isn't empty
+          addLibs(nil, dir .. file, prefix, ext, subPath, libPrefix .. file:sub(1, -2) .. ".")
         end
       end
     end
   end
   for path in package.path:gmatch("[^;]+") do
     addLibs(path)
+  end
+  for path, libname in pairs(libFiles) do
+    if libraries[libname] == nil then
+      local ok, lib = pcall(require, libname)
+      libraries[libname] = lib
+    end
   end
   --add preloaded libraries
   for libname, loader in pairs(package.preload) do
@@ -1932,16 +1629,11 @@ if doListing then
   end
 end
 
-mem "init"
-mem("loading total", "initial")
 --**LAST STEPS TO FINAL ENVIRONMENT**
 local default_object = {
   environment = global_environment,
   components = components and read_only(components, "components is read only!"),
   libraries = libraries and read_only(libraries, "libraries is read only!"),
-  debug = read_only({
-    mem = read_only(mem, "debug.mem is read only!"),
-  }, "debug is read only!"),
 }
 local main_object = default_object
 if #parameters > 0 and next(parameterValues) then

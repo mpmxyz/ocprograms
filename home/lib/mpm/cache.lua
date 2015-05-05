@@ -105,7 +105,7 @@ local cache_meta = setmetatable({},{
   end,
 })
 
---cache.new(function(key) - > value) - > (table[key] - > value)
+--cache.wrap(function(key) - > value) - > (table[key] - > value)
 --returns a cache table as a proxy to the given function
 function cache.wrap(func, mode, cache_id)
   --create cache table

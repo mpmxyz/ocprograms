@@ -4,7 +4,7 @@
   example code:
   
 --load library
-local auto_progress = require 'auto_progress'
+local auto_progress = require 'mpm.auto_progress'
 --generate a list of actions
 local todo = {}
 for i=1, 30 do

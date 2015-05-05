@@ -17,7 +17,7 @@ local WORKING_DIRECTORY = fs.canonical(shell.getWorkingDirectory()):gsub("/$",""
 local auto_progress
 if true then
   local ok
-  ok, auto_progress = pcall(require, "utils.auto_progress")
+  ok, auto_progress = pcall(require, "mpm.auto_progress")
   if not ok then
     auto_progress = {}
     function auto_progress.new()
