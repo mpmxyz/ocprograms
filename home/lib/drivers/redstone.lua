@@ -193,6 +193,4 @@ end
 --registering the driver
 driver.add("redstone", redstone_driver)
 
---returning redstone driver API
---TODO: any ideas?
-return TODO
+return "loaded"

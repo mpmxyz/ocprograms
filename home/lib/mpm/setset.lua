@@ -2,9 +2,9 @@
 --an implementation of a set of sets to ensure raw equality for sets with equal contents.
 
 --load libraries
-local cache = require("cache").wrap
-local hashset = require("hashset")
-local sets  = require("sets")
+local cache = require("mpm.cache").wrap
+local hashset = require("mpm.hashset")
+local sets  = require("mpm.sets")
 
 --library table
 local setset = {}

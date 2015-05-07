@@ -10,15 +10,14 @@ local function isSpace(text)
   return text:match("^ *$") ~= nil
 end
 
-local flushingFunctions={
-  copy = true,
-  fill = true,
-  getBackground = true,
-  getForeground = true,
-  get = true,
+local flushingFunctions = {
+  bind = true,          --prevent drawing after target change
+  copy = true,          --reading old contents
+  fill = true,          --uses a 2D shape, the buffer is 1D only
+  get = true,           --avoid reading old contents
+  getBackground = true, --avoid reading old contents
+  getForeground = true, --avoid reading old contents
   setResolution = true, --buffer has to be cleared, else it is drawn after resolution change
-  bind = true,
-  --TODO: full list
 }
 
 local draw_buffer = {}
@@ -66,7 +65,6 @@ function draw_buffer.new(gpu)
     else
       next_foreground = buffer.next_foreground
     end
-    --TODO: Is there a character without background? (-> a full box?)
     local next_background = buffer.next_background
     
     --2nd: Is flushing necessary?
@@ -197,7 +195,7 @@ function draw_buffer.new(gpu)
     buffer.current_foreground = nil
     buffer.current_background = nil
   end
-  --copy other gpu methods to make this a perfect drop-in 'replacement'
+  --copy other gpu methods to make this a perfect drop-in replacement
   for k,v in pairs(gpu) do
     if object[k] == nil then
       if flushingFunctions[k] then

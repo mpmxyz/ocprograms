@@ -1,9 +1,11 @@
 
 local config = {}
 
-local function onError(name,text)
+--adds some boilerplate text
+local function onError(name, text)
   error("Config validation failed; error in '"..name.."': "..text,0)
 end
+--
 local function toIndex(key)
   if type(key) == "string" then
     if key:match("^[%a_][%a%d_]*$") then

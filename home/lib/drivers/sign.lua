@@ -38,5 +38,4 @@ end
 driver.add("sign", sign_driver)
 
 --returning sign driver API
---TODO: any ideas?
-return TODO
+return "loaded"

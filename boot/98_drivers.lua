@@ -1,7 +1,7 @@
 
 local event = require("event")
 local filesystem = require("filesystem")
-local computer = require"computer"
+local computer = require("computer")
 local driver = require("devfs.driver")
 
 --the name of the driver subdirectory within the libary paths

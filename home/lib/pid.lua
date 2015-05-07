@@ -1,6 +1,7 @@
 
 --loading libraries
 local event = require("event")
+local values = require("mpm.values")
 
 --the library table
 local pid = {}
@@ -10,49 +11,6 @@ local running = {}
 local registry = {}
 
 --**TYPES AND VALIDATION**--
-local function pidError(text)
-  error("pid lib: "..text)
-end
-
-local types_callable={
-  ["function"] = true,
-  ["table"]    = true,--due to component wrappers...
-}
-local types_indexable={
-  ["table"]    = true,
-}
-local types_value={
-  ["function"] = true,
-  ["table"]    = true,
-  ["number"]   = true,
-}
---supports using functions as values
-local function getValue(value)
-  if types_callable[type(value)] then
-    value = value()
-  end
-  return value
-end
-local function check(value, name, optional, permitted_types, wrongTypeText)
-  if not permitted_types[type(value)] then
-    if value == nil then
-      if not optional then
-        pidError("'"..name.."' missing!")
-      end
-    else
-      pidError("'"..name.."' "..wrongTypeText)
-    end
-  end
-end
-local function checkValue(value, name, optional)
-  check(value, name, optional, types_value, "has to be a number or callable!")
-end
-local function checkCallable(value, name, optional)
-  check(value, name, optional, types_callable, "has to be callable!")
-end
-local function checkIndexable(value, name, optional)
-  check(value, name, optional, types_indexable, "has to be a table!")
-end
 
 --[[
   pid.new(controller, id, enable) -> controller
@@ -113,13 +71,13 @@ function pid.new(data, id, enable)
   local function callback()
     local info = {}
     --get constants
-    local p = getValue(data.factors.p) or 0
-    local i = getValue(data.factors.i) or 0
-    local d = getValue(data.factors.d) or 0
+    local p = values.get(data.factors.p) or 0
+    local i = values.get(data.factors.i) or 0
+    local d = values.get(data.factors.d) or 0
     
     --get some information...
-    local value        = getValue(data.sensor)
-    local target       = getValue(data.target)
+    local value        = values.get(data.sensor)
+    local target       = values.get(data.target)
     --error(t)
     local currentError = target - value
     
@@ -135,8 +93,8 @@ function pid.new(data, id, enable)
     
     --access some actuator values
     local actuator   = data.actuator
-    local controlMax = getValue(actuator.max)
-    local controlMin = getValue(actuator.min)
+    local controlMax = values.get(actuator.max)
+    local controlMin = values.get(actuator.min)
     
     if lastError then
       --calculate error'(t)
@@ -174,7 +132,8 @@ function pid.new(data, id, enable)
       else
         defaultControl = controlMax or 0
       end
-      local currentControl = getValue(actuator.get or actuator.initial or defaultControl)
+      local currentControl = values.get(actuator.get or actuator.initial or defaultControl)
+      local currentControl = values.get(actuator.get or actuator.initial or defaultControl)
       offset = (currentControl - p * currentError)
     end
     
@@ -208,23 +167,21 @@ function pid.new(data, id, enable)
   end
 
   --checking data contents (errors during execution are hidden in event.log)
-  checkIndexable(data.actuator,    "actuator")
-  checkCallable(data.actuator.set, "actuator.set")
-  checkValue(data.actuator.get,    "actuator.get", true)
-  checkValue(data.actuator.min,    "actuator.min",     true)
-  checkValue(data.actuator.max,    "actuator.max",     true)
-  checkIndexable(data.factors,     "factors")
-  checkValue(data.factors.p,       "factors.p",        true)
-  checkValue(data.factors.i,       "factors.i",        true)
-  checkValue(data.factors.d,       "factors.d",        true)
-  if (data.factors.p and data.factors.i and data.factors.d) == nil then
-    --The library wouldn't have trouble without those factors.
-    --But it wouldn't make sense to use it that way.
-    pidError("All factors are nil!")
-  end
-  checkValue(data.target,          "target")
-  checkValue(data.sensor,          "sensor")
-  checkValue(data.frequency,       "frequency")
+  values.checkTable(data.actuator,        "actuator")
+  values.checkCallable(data.actuator.set, "actuator.set")
+  values.checkNumber(data.actuator.get,   "actuator.get", true)
+  values.checkNumber(data.actuator.min,   "actuator.min", true)
+  values.checkNumber(data.actuator.max,   "actuator.max", true)
+  values.checkTable(data.factors,         "factors")
+  values.checkNumber(data.factors.p,      "factors.p",    true)
+  values.checkNumber(data.factors.i,      "factors.i",    true)
+  values.checkNumber(data.factors.d,      "factors.d",    true)
+  --The library wouldn't have trouble without those factors.
+  --But it wouldn't make sense to use it that way.
+  assert((data.factors.p or data.factors.i or data.factors.d) ~= nil, "All factors are nil!")
+  values.checkNumber(data.target,         "target")
+  values.checkNumber(data.sensor,         "sensor")
+  values.checkNumber(data.frequency,      "frequency")
   --PID registry
   return pid.set(data, id, enable)
 end

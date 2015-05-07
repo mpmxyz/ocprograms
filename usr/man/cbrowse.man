@@ -1,0 +1,92 @@
+NAME
+  cbrowse - inspecting lua components and other objects
+  
+SYNOPSIS
+  cbrowse [options] [commands...]
+  
+DESCRIPTION
+  cbrowse is a development tool with a heavy focus on inspecting Lua objects.
+  
+  It features a single command line as input that accepts Lua code or - when using the prefix "sh " including the space - shell commands.
+  (includes tab autocompletion for Lua code)
+  After hitting enter the command is executed and a list of returned values is displayed if there were any.
+  You can return to the previous display via Ctrl+C. The program itself is closed by exiting the top level or via an interrupt. (Ctrl+Alt+C)
+  Scrolling is done via Page down/up or via using the mouse wheel.
+  
+  There are 3 types of displays:
+    list
+      This contains a list of values - showing their type in one column and some text to describe their value in another one. (used as default)
+      Each value has got a 1 or 2 letter identifier shown to ease access from Lua commands.
+      (-> use _V.a to access the first value via Lua, _V.b for the second etc.)
+    table
+      This contains a combination of keys and values and is used to display Lua tables. (used when a single table is returned)
+      Each key value pair has got a 1 or 2 letter identifier as described in the previous paragraph.
+      (-> use _K.a to access the first key, _V.b for the second value)
+    string
+      This shows a Lua string with character based line wrapping. (used when a single string is returned)
+  
+  You are able to access a special environment using Lua commands.
+  It is a proxy merging the currently viewed object with the global environment and some extra values.
+  Since there may be collisions it is necessary to prioritize the contents:
+    1st: special values (overrides the other contents)
+      There are up to 5 of them:
+        _OBJ: the currently displayed object
+        _G: the global environment
+        _K: a list of keys (if available)
+        _V: a list of values (if available)
+        _REG: a special registry table used by cbrowse to display names for non primitive values
+          When using the name as an index you get the object associated with the name.
+          When using an object as an index you get its name.
+          You can use the registry for the following types:
+            type      name format
+            function  "f1234"
+            userdata  "u1234"
+            thread    "T1234"
+            table     "t1234"
+    2nd: current object (a list of values is just a table using integer indices)
+    3rd: a sandboxed global environment - with automatic require
+    
+  Writing access uses the same priority but defaults to the current object as a target if the reading operation didn't find a non nil value.
+  (This implies that there IS a reading operation before every writing operation. Use one of the special values to bypass that behaviour.)
+  
+  When a command calls a gpu function that might modify the screen it will make cbrowse enter a graphics debug mode:
+    -The screen is cleared before the function is executed.
+    -After finishing the command the screen will freeze until you hit a key.
+  Changes in primary GPU and screen or resolution are also detected. (->The screen is redrawn.)
+  
+  cbrowse also supports left and right clicks on keys or values.
+    A left click inserts a reference to the clicked object.
+    A right click inserts "=reference" and hits enter for you.
+      That way you can immediately look at an object you are interested in.
+      Functions behave a bit differently:
+      "=reference()" is insered and the cursor is moved one character to the left to allow you to type in parameters.
+      
+OPTIONS
+  --clean
+    disables loading libraries and components on startup
+    This is highly recommended if you don't have a lot of memory installed.
+  
+  --noevent
+    disables updates to the list of components
+  
+  For non option parameters it tries to find a value by using the parameter:
+    1st: as a component address
+    2nd: to get a primary component
+    3rd: as a library name
+    4th: as code executed via the cbrowse command line
+  
+EXAMPLES
+  cbrowse
+    starts cbrowse in the default screen
+    
+  cbrowse --clean
+    starts cbrowse without loading all libraries and components available on the computer
+      sh ls
+        executes command "ls" in the shell
+        cbrowse is waiting for a key input after execution because ls printed some output. (You should have a chance to read it after all.)
+  cbrowse redstone
+    The initial screen now contains a reference "==default==" to the default object and a reference "redstone" to a redstone component proxy.
+      =redstone
+        move to the loaded redstone component
+      =getInput(sides.north)
+        show the redstone input at the northern side of the redstone component

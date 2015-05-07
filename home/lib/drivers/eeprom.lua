@@ -45,5 +45,4 @@ end
 driver.add("eeprom", eeprom_driver)
 
 --returning eeprom driver API
---TODO: any ideas?
-return TODO
+return "loaded"
