@@ -100,7 +100,7 @@ DIMENSIONS:
 FOR LATER:
   display tables in content table as a serialized string?
 ]]
-
+--TODO: raw inspect, custom environment
 local component = require("component")
 local event     = require("event")
 local term      = require("term")
@@ -113,6 +113,7 @@ local tables           = require("mpm.tables")
 local draw_buffer      = require("mpm.draw_buffer")
 local component_filter = require("mpm.component_filter")
 local config           = require("mpm.config")
+local valuesLib        = require("mpm.values")
 
 
 --****DEBUG****
@@ -594,7 +595,7 @@ local function localEnvironment(object, keys, values)
   local env = setmetatable({}, {
     __newindex = function(t, k,v)
       local _, source = findNonNil(k, true)
-      if types_indexable[type(source)] then
+      if valuesLib.types_indexable[type(source)] then
         source[k] = v
       else
         --redirect to _G if the object is not indexable (i.e. a string)

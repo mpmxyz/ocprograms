@@ -11,6 +11,7 @@ DESCRIPTION
   (includes tab autocompletion for Lua code)
   After hitting enter the command is executed and a list of returned values is displayed if there were any.
   You can return to the previous display via Ctrl+C. The program itself is closed by exiting the top level or via an interrupt. (Ctrl+Alt+C)
+  Scrolling is done via Page down/up or via using the mouse wheel.
   
   There are 3 types of displays:
     list
@@ -51,6 +52,7 @@ DESCRIPTION
   When a command calls a gpu function that might modify the screen it will make cbrowse enter a graphics debug mode:
     -The screen is cleared before the function is executed.
     -After finishing the command the screen will freeze until you hit a key.
+  Changes in primary GPU and screen or resolution are also detected. (->The screen is redrawn.)
   
   cbrowse also supports left and right clicks on keys or values.
     A left click inserts a reference to the clicked object.
