@@ -1592,12 +1592,14 @@ if doListing then
   end
   --add preloaded libraries
   for libname, loader in pairs(package.preload) do
-    local ok, lib = pcall(require, libname)
-    libraries[libname] = lib
+    if libraries[libname] == nil then
+      local ok, lib = pcall(require, libname)
+      libraries[libname] = lib
+    end
   end
   --add loaded libraries
   for libname, library in pairs(package.loaded) do
-    if library ~= false then
+    if libraries[libname] == nil and library ~= false then
       libraries[libname] = library
     end
   end
