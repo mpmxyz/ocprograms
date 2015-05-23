@@ -100,7 +100,7 @@ DIMENSIONS:
 FOR LATER:
   display tables in content table as a serialized string?
 ]]
---TODO: raw inspect, custom environment
+
 local component = require("component")
 local event     = require("event")
 local term      = require("term")
@@ -1182,18 +1182,34 @@ local function browse(typ, pathName, ...)
   local scrollY = 0
   local scrollStep = 1
   --marks that a context has been changed
-  local contextDirty = false
+  local contextDirty, objectDirty = false, false
   
   local function pressCtrlC()
-    computer.pushSignal("key_down",  component.keyboard.address, 0, keyboard.keys.lcontrol)
-    computer.pushSignal("key_down",  component.keyboard.address, 99,keyboard.keys.c)
-    computer.pushSignal("key_up"  ,  component.keyboard.address, 99,keyboard.keys.c)
-    computer.pushSignal("key_up"  ,  component.keyboard.address, 0, keyboard.keys.lcontrol)
+    if event.shouldSoftInterrupt then
+      --newer OC versions
+      --(incompatible to old version due to timeouts causing errors)
+      computer.pushSignal("interrupted", 0.0)
+    else
+      --older OC versions
+      --(faking player input due to missing an "interrupted" event)
+      computer.pushSignal("key_down",  component.keyboard.address, 0, keyboard.keys.lcontrol)
+      computer.pushSignal("key_down",  component.keyboard.address, 99,keyboard.keys.c)
+      computer.pushSignal("key_up"  ,  component.keyboard.address, 99,keyboard.keys.c)
+      computer.pushSignal("key_up"  ,  component.keyboard.address, 0, keyboard.keys.lcontrol)
+    end
   end
   local function forceContextReset()
     if not contextDirty then
       --remember the context after term.read fails
       contextDirty = true
+      --send Ctrl + C
+      pressCtrlC()
+    end
+  end
+  local function forceObjectReload()
+    if not objectDirty then
+      --remember the context after term.read fails
+      objectDirty = true
       --send Ctrl + C
       pressCtrlC()
     end
@@ -1265,6 +1281,9 @@ local function browse(typ, pathName, ...)
           scroll(-scrollStep)
         elseif code == keys.pageDown then
           scroll( scrollStep)
+        elseif code == keys.f5 then
+          --F5: reloading object
+          forceObjectReload()
         end
       end
     end,
@@ -1276,7 +1295,7 @@ local function browse(typ, pathName, ...)
     touch = function(_, address, x, y, button, player)
       if context.gpu.getScreen() == address then
         if view.getClicked then
-          local clickedIndex, clickedType = view.getClicked(x, y,scrollY)
+          local clickedIndex, clickedType = view.getClicked(x, y, scrollY)
           if clickedIndex then
             if button == 0 then
               --normal click: just add a reference to the selected object
@@ -1439,11 +1458,14 @@ local function browse(typ, pathName, ...)
       if cmd == nil and not term.isAvailable() then
         contextDirty = true
       end
-      
-      if contextDirty then
+      if objectDirty then
+        --reload object
+        reload(...)
+        contextDirty, objectDirty = false, false
+      elseif contextDirty then
         --reload context
-        contextDirty = false
         resetContext()
+        contextDirty = false
       elseif cmd ~= nil then
         --disable event processing because we are leaving this object for a minute...
         ignore()
@@ -1491,38 +1513,74 @@ local parameters, options = shell.parse(...)
 local doListing = (not options.clean)
 local doEventListening = not options.noevent
 
+
 --**LOAD PARAMETERS**
 local parameterValues = {}
-for _, name in ipairs(parameters) do
+
+local function loadParameter(name, index)
+  if type(name) ~= "string" then
+    --use raw value if it isn't a string
+    return name
+  end
   local address = component.get(name)
   if address ~= nil then
     --1st: component address
-    parameterValues[name] = component.proxy(address)
+    return component.proxy(address)
   elseif component.isAvailable(name) then
     --2nd: component type
-    parameterValues[name] = component.getPrimary(name)
+    return component.getPrimary(name)
   else
     --3rd: libraries
     local ok, lib = pcall(require, name)
     if ok then
-      parameterValues[name] = lib
+      return lib
     else
       --4th: run command
-      local function addResults(ok, ...)
+      local function packResults(ok, ...)
         if ok then
           local list = table.pack(...)
           if list.n > 0 then
-            parameterValues[name] = list
+            return list
           end
         else
-          parameterValues[name] = "No component or library found; error when executing as code: " .. (...)
+          return "No component or library found; error when executing as code: " .. (...)
         end
       end
-      addResults(runCommand(name, global_environment))
+      return packResults(runCommand(name, global_environment))
     end
   end
 end
 
+if options.env then
+  --"--env" uses the first parameter as a replacement to the global environment
+  local newEnv = parameters[1]
+  if not options.raw then
+    --loading from text
+    newEnv = loadParameter(newEnv, 1)
+  end
+  assert(type(newEnv) == "table", "Expected an environment table as first parameter!")
+  --replacing the global environment
+  global_environment = newEnv
+  --removing the first parameter
+  local newParameters = {}
+  for i, v in pairs(parameters) do
+    if i > 1 then
+      newParameters[i - 1] = v
+    end
+  end
+  parameters = newParameters
+end
+
+
+if options.raw then
+  for i, value in pairs(parameters) do
+    parameterValues[i] = value
+  end
+else
+  for i, name in ipairs(parameters) do
+    parameterValues[name] = loadParameter(name, i)
+  end
+end
 
 --**LOAD COMPONENTS AND LIBRARIES**
 local components
