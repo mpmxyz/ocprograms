@@ -605,6 +605,24 @@ local function localEnvironment(object, keys, values)
     __index = function(t, k)
       return (findNonNil(k))
     end,
+    __pairs = function(t)
+      return coroutine.wrap(function()
+        for k, v in pairs(override) do
+          coroutine.yield(k, v)
+        end
+        for k, v in pairs(object) do
+          if override[k] == nil then
+            coroutine.yield(k, v)
+          end
+        end
+        for k, v in pairs(global_environment) do
+          if override[k] == nil and rawget(object, k) == nil then
+            coroutine.yield(k, v)
+          end
+        end
+        coroutine.yield(nil)
+      end)
+    end,
   })
   return env
 end
@@ -1390,7 +1408,7 @@ local function browse(typ, pathName, ...)
       --no preexisting identifier part
       return nil
     end
-    local parentObject = loadedObject.object
+    local parentObject = loadedObject.environment
     do
       --checking part before dot (current object only)
       local prefix, parents = previousCode, {}
