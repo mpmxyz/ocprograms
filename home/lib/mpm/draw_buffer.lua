@@ -12,7 +12,7 @@ end
 
 local flushingFunctions = {
   bind = true,          --prevent drawing after target change
-  copy = true,          --reading old contents
+  copy = true,          --avoid reading old contents
   fill = true,          --uses a 2D shape, the buffer is 1D only
   get = true,           --avoid reading old contents
   getBackground = true, --avoid reading old contents
