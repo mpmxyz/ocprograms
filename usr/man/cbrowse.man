@@ -11,6 +11,7 @@ DESCRIPTION
   (includes tab autocompletion for Lua code)
   After hitting enter the command is executed and a list of returned values is displayed if there were any.
   You can return to the previous display via Ctrl+C. The program itself is closed by exiting the top level or via an interrupt. (Ctrl+Alt+C)
+  You can reload the display by hitting F5.
   Scrolling is done via Page down/up or via using the mouse wheel.
   
   There are 3 types of displays:
@@ -68,12 +69,16 @@ OPTIONS
   
   --noevent
     disables updates to the list of components
+    
+  --env
+    uses the first non option parameter as a global environment (_G)
   
   For non option parameters it tries to find a value by using the parameter:
     1st: as a component address
     2nd: to get a primary component
     3rd: as a library name
     4th: as code executed via the cbrowse command line
+  Using the --raw option disables this behaviour and instead uses arguments without processing. (useful if you call cbrowse for debugging your own program)
   
 EXAMPLES
   cbrowse
@@ -90,3 +95,17 @@ EXAMPLES
         move to the loaded redstone component
       =getInput(sides.north)
         show the redstone input at the northern side of the redstone component
+
+DEBUGGING
+  cbrowse can be used as a debugging aid by executing it from within your program:
+    local a, b, c = "test", 3.14, os
+    require"cbrowse".view(a, b, c)
+  Some words of advice though:
+    1st
+      It will consume events using event.pull. (like term.read)
+      If you expect to pull some events after running it, it might change the programs behaviour.
+    2nd
+      Due to a limitation of shell.execute you can't have nil values as a parameter. All values after a nil value are just ignored.
+      (The library is just a shortcut for a shell.execute call.)
+      If you need that function, consider using a table:
+        require"cbrowse".view{a, b, c}
