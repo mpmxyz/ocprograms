@@ -15,4 +15,5 @@ tar --numeric-owner -cf tars/crunch.tar home/bin/crunch.lua home/lib/mpm/cache.l
 tar --numeric-owner -cf tars/pid.tar home/bin/pid.lua home/lib/pid.lua usr/man/pid.man
 #cbrowse.tar
 tar --numeric-owner -cf tars/cbrowse.tar home/bin/cbrowse.lua home/lib/mpm/tables.lua home/lib/mpm/draw_buffer.lua home/lib/mpm/component_filter.lua home/lib/mpm/config.lua home/lib/mpm/cache.lua home/lib/mpm/values.lua usr/man/cbrowse.man
-#devfs.tar: TODO
+#devfs.tar
+tar --numeric-owner -cf tars/devfs.tar boot/98_devfs.lua home/lib/devfs home/lib/drivers
