@@ -59,7 +59,8 @@ luaparser.patterns = {
   --comments
   comment = {
     open  = "%-%-",
-    short = "(%[?%=*[^%=%[\r\n][^\r\n]*)?",
+    --1st: starting with [=====, 2nd: not starting with [, 3rd: empty
+    short = "(%[%=*([^%[%=\r\n][^\r\n]*)?|[^%[\r\n][^\r\n]*)?",
   },
 }
 --****LEXER****--

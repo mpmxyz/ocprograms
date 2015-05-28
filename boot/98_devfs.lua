@@ -19,7 +19,10 @@ local function loadPath(path)
         --extract library name
         local libname = DRIVER_SUBDIR .. "." .. file:gsub(ext.."$", ""):gsub("^"..prefix,"")
         --try loading driver
-        pcall(require, libname)
+        local ok, err = pcall(require, libname)
+        if not ok then
+          event.onError(err)
+        end
       end
     end
   end
