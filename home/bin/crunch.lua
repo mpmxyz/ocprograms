@@ -7,12 +7,15 @@
   TODO: string/number optimization
   TODO: general name optimization for everything using ".name"
         (needs black-/whitelist e.g. for table.concat)
+  TODO: marking constant expressions -> constant folding
+  TODO: dependency tree -> "local" concatenation
 ]]
 
 --**load libraries**--
-local parser = require("parser.main")
+local parser    = require("parser.main")
 local luaparser = require("parser.lua")
-local cache = require("mpm.cache").wrap
+local lz77      = require("parser.lz77")
+local cache     = require("mpm.cache").wrap
 
 --pcall require for compatibility with lua standalone
 local ok, shell = pcall(require, "shell")
@@ -46,6 +49,13 @@ if options.output then
     options.output = nil
   end
 end
+if options.lz77 then
+  if options.lz77 == true then
+    options.lz77 = 80
+  else
+    options.lz77 = math.max(10, math.min(230, tonumber(options.lz77)))
+  end
+end
 
 --checking arguments
 local USAGE_TEXT = [[
@@ -61,6 +71,9 @@ option             description
                     full parsing (->renaming)
                     (default: do full parsing
                      if parsing table is known)
+--lz77[=10..230]    enables LZ77 compression,
+                    (default value of reference
+                     length limit: 80)
 ]]
 --no files given: print usage text
 if #files == 0 then
@@ -466,13 +479,15 @@ end
 local function newWriter(stream)
   local lastWritten
   return function(text)
-    --detect if space is necessary
-    if lastWritten ~= nil and text:find("^[%w_]") and lastWritten:find("[%w_]$") then
-      stream:write("\n"..text)
-    else
-      stream:write(text)
+    if text ~= "" then
+      --detect if space is necessary
+      if lastWritten ~= nil and text:find("^[%w_]") and lastWritten:find("[%w_]$") then
+        stream:write("\n"..text)
+      else
+        stream:write(text)
+      end
+      lastWritten = text
     end
-    lastWritten = text
   end
 end
 
@@ -703,9 +718,8 @@ local function initCompressor()
       end
     end
     --outputs compressed code to the given file
-    function compressor:compress(target)
-      local output = io.open(target, "w")
-      local write = newWriter(output)
+    function compressor:compress(outputStream)
+      local write = newWriter(outputStream)
       
       --2nd: traverse tree, remember top level names
       local function getReplacement(id)
@@ -789,8 +803,6 @@ local function initCompressor()
         default = onDefault,
       })
       self.scope:pop()
-      --close output stream
-      output:close()
     end
   else
     --lexer only; just removes unnecessary whitespace and comments
@@ -801,10 +813,9 @@ local function initCompressor()
     function compressor:buildTranslator()
       --do nothing
     end
-    function compressor:compress(target)
+    function compressor:compress(outputStream)
       --read and write at once
       --TODO: Does that also work when input==output?
-      local outputStream = io.open(target, "w")
       local write = newWriter(outputStream)
       local function output(typ, source, from, to, extractedToken)
         if not luaparser.ignored[typ] then
@@ -812,7 +823,6 @@ local function initCompressor()
         end
       end
       parser.lexer(io.lines(self.file, 512), luaparser.lexer, output)
-      outputStream:close()
     end
   end
 end
@@ -822,8 +832,44 @@ end
 for i, file in ipairs(files) do
   local inputFile = shell.resolve(file)
   local outputFile = options.output and options.output[i] or addInfix(inputFile, options.infix)
+  local outputStream = assert(io.open(outputFile, "wb"))
+  local originalStream = outputStream
+  if options.lz77 then
+    --LZ77 SXF option
+    local function lz77output(value)
+      originalStream:write(value)
+    end
+    --create and init a compressor coroutine
+    local lz77yieldedCompress = coroutine.create(lz77.compress)
+    assert(coroutine.resume(lz77yieldedCompress, coroutine.yield, options.lz77, lz77output, true))
+    
+    outputStream = {
+      lz77yieldedCompress = lz77yieldedCompress,
+      write = function(self, value)
+        return assert(coroutine.resume(lz77yieldedCompress, value))
+      end,
+      close = function()
+        return originalStream:close()
+      end,
+    }
+    
+    originalStream:write("local i=[[")
+  end
   initCompressor()
   compressor:analyze(inputFile)
   compressor:buildTranslator()
-  compressor:compress(outputFile)
+  compressor:compress(outputStream)
+  if options.lz77 then
+    --finish lz77 compression
+    while coroutine.status(outputStream.lz77yieldedCompress) == "suspended" do
+      assert(coroutine.resume(outputStream.lz77yieldedCompress, nil))
+    end
+    originalStream:write("]]")
+    --append decompression code
+    originalStream:write(lz77.getSXF("i", "o", options.lz77))
+    --append launcher
+    originalStream:write("\nreturn assert(load(o))(...)")
+  end
+  
+  outputStream:close()
 end
