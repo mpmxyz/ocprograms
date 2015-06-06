@@ -151,7 +151,6 @@ function lz77.uncompress(input, biggestReference)
       --length == 1 and length == 2 do not exist
       local from = #output + (offset - MAX_NUMBER)
       while length > 0 do
-        print(length)
         local part = output:sub(from, from + length - 1)
         output = output .. part
         from   = from   + #part
