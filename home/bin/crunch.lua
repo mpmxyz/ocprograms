@@ -71,6 +71,9 @@ option             description
                     full parsing (->renaming)
                     (default: do full parsing
                      if parsing table is known)
+--lz77[=10..230]    enables LZ77 compression,
+                    (default value of reference
+                     length limit: 80)
 ]]
 --no files given: print usage text
 if #files == 0 then

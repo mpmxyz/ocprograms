@@ -19,6 +19,13 @@ DESCRIPTION
   ->replaces global variables by local variables (lossy when relying on side effects from outside code or _ENV changes)
   
 OPTIONS
+  --lz77[=10..230]
+    enables lz77 compression
+    The optional value defaults to 80 and defines the maximum length of a reference.
+    All length values that are higher are used to define an uncompressed sequence of characters.
+    Increasing the maximum reference length therefore reduces the maximum uncompressed sequence length.
+    It is therefore best to find a balance between both extremes. (If you really need those 12 bytes...)
+
   --infix=INFIX
     adds the given infix to the file name (default: ".cr")
     file1.lua -> file1.cr.lua; file2 -> file2.cr

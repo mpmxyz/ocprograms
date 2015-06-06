@@ -1,11 +1,11 @@
 
 
-local compressor = {}
+local lz77 = {}
 
 
 
 
-function compressor.compress(input, biggestReference, output, sleepBetweenCharacters)
+function lz77.compress(input, biggestReference, output, sleepBetweenCharacters)
   local function getByte(number)
     return number + (number >= 13 and 1 or 0) + (number >= 92 and 1 or 0)
   end
@@ -47,8 +47,8 @@ function compressor.compress(input, biggestReference, output, sleepBetweenCharac
     local literalLength =  to - literalFrom + 1
     --split if it is too long
     while literalLength > 0 do
-      local partLength = math.min(literalLength, MAX_NUMBER - biggestReference)
-      appendOutput(string.char(getByte(biggestReference + partLength)) .. inputBuffer:sub(literalFrom, literalFrom + partLength - 1))
+      local partLength = math.min(literalLength, MAX_NUMBER - biggestReference + 2)
+      appendOutput(string.char(getByte(biggestReference + partLength - 2)) .. inputBuffer:sub(literalFrom, literalFrom + partLength - 1))
       literalLength = literalLength - partLength
       literalFrom   = literalFrom   + partLength
     end
@@ -101,7 +101,7 @@ function compressor.compress(input, biggestReference, output, sleepBetweenCharac
       if longestLength > 2 then
         --limitting longestLength to allowed maximum
         longestLength = math.min(longestLength, biggestReference)
-        appendOutput(string.char(getByte(longestLength)) .. string.char(getByte(longestFrom - (i - 1) + MAX_NUMBER)))
+        appendOutput(string.char(getByte(longestLength-2)) .. string.char(getByte(longestFrom - (i - 1) + MAX_NUMBER)))
         literalFrom = i + longestLength
       elseif byte == 93 then
         --byte == 93 / char == "]"
@@ -129,7 +129,7 @@ function compressor.compress(input, biggestReference, output, sleepBetweenCharac
   end
 end
 
-function compressor.uncompress(input, biggestReference)
+function lz77.uncompress(input, biggestReference)
   local function getNumber(byte)
     return byte - (byte > 13 and 1 or 0) - (byte > 93 and 1 or 0)
   end
@@ -138,7 +138,7 @@ function compressor.uncompress(input, biggestReference)
   local i, output = 1, ""
   while i <= #input do
     local length, offset = input:byte(i, i + 1)
-    length = getNumber(length)
+    length = getNumber(length) + 2
     offset = getNumber(offset)
     if length > biggestReference then
       --long part for literals
@@ -147,9 +147,11 @@ function compressor.uncompress(input, biggestReference)
       length = length - biggestReference
       output = output .. input:sub(i + 1, i + length)
       i = i + length
-    elseif length > 0 then
+    elseif length > 2 then
+      --length == 1 and length == 2 do not exist
       local from = #output + (offset - MAX_NUMBER)
       while length > 0 do
+        print(length)
         local part = output:sub(from, from + length - 1)
         output = output .. part
         from   = from   + #part
@@ -167,15 +169,15 @@ function compressor.uncompress(input, biggestReference)
 end
 
 
-function compressor.getSXF(input, output, biggestReference)
+function lz77.getSXF(input, output, biggestReference)
   return (([[
 local j,%output%,s,l,p,f=1,""
 while j <= #i do
 l,s=%input%:byte(j,j+1)s=s or 0
-l=l-(l>13 and 1 or 0)-(l>93 and 1 or 0)s=s-(s>13 and 1 or 0)-(s>93 and 1 or 0)if l>%biggestReference% then
+l=l+(l>13 and 1 or 2)-(l>93 and 1 or 0)s=s-(s>13 and 1 or 0)-(s>93 and 1 or 0)if l>%biggestReference% then
 l=l-%biggestReference%
 %output%=%output%..%input%:sub(j+1,j+l)j=j+l
-elseif l>0 then
+elseif l>2 then
 f=#%output%+(s-253)while l>0 do
 p=%output%:sub(f,f+l-1)%output%=%output%..p
 f=f+#p
@@ -188,4 +190,4 @@ j=j+1
 end]]):gsub("%%(%w+)%%",{input = input, output = output, biggestReference = biggestReference}))
 end
 
-return compressor
+return lz77
