@@ -853,7 +853,7 @@ for i, file in ipairs(files) do
       end,
     }
     
-    originalStream:write("local i=[[")
+    originalStream:write("local i=[[\n")
   end
   initCompressor()
   compressor:analyze(inputFile)
