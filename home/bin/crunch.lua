@@ -513,14 +513,14 @@ local function initCompressor()
   
   if options.tree and not options.notree then
     --use full parser; more memory consumption but also a lot more possibilities
-    function compressor:analyze(file)
+    function compressor:analyze(inputStream)
       --simple version: create usage statistics for given names
       --advanced version: create usage statistics for given variables
       --(-> 2 different local variables with same name could be treated differently.)
       --(-> Global variable access could be detected, listed and blacklisted.)
       --(-> 2 different variables could be unified if they do not interfere with each other)
       --1st: load tree
-      local tree, err = parser.parse(io.lines(file, 512), luaparser)
+      local tree, err = parser.parse(inputStream:lines(512), luaparser)
       if err then
         error(err.error)
       end
@@ -806,9 +806,9 @@ local function initCompressor()
     end
   else
     --lexer only; just removes unnecessary whitespace and comments
-    function compressor:analyze(file)
-      --remember file
-      self.file = file
+    function compressor:analyze(inputStream)
+      --remember input stream
+      self.inputStream = inputStream
     end
     function compressor:buildTranslator()
       --do nothing
@@ -822,7 +822,7 @@ local function initCompressor()
           write(extractedToken or source:sub(from, to))
         end
       end
-      parser.lexer(io.lines(self.file, 512), luaparser.lexer, output)
+      parser.lexer(self.inputStream:lines(512), luaparser.lexer, output)
     end
   end
 end
@@ -831,9 +831,12 @@ end
 --compress all given files separately
 for i, file in ipairs(files) do
   local inputFile = shell.resolve(file)
+  local inputStream = io.open(inputFile, "rb")
+  
   local outputFile = options.output and options.output[i] or addInfix(inputFile, options.infix)
   local outputStream = assert(io.open(outputFile, "wb"))
   local originalStream = outputStream
+  
   if options.lz77 then
     --LZ77 SXF option
     local function lz77output(value)
@@ -856,7 +859,7 @@ for i, file in ipairs(files) do
     originalStream:write("local i=[[\n")
   end
   initCompressor()
-  compressor:analyze(inputFile)
+  compressor:analyze(inputStream)
   compressor:buildTranslator()
   compressor:compress(outputStream)
   if options.lz77 then
@@ -871,5 +874,6 @@ for i, file in ipairs(files) do
     originalStream:write("\nreturn assert(load(o))(...)")
   end
   
+  inputStream:close()
   outputStream:close()
 end
