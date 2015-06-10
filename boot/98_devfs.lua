@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : boot/98_devfs.lua
+--description: loader for devfs project
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 local event = require("event")
 local filesystem = require("filesystem")

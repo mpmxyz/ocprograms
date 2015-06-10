@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/drivers/tape.lua
+--description: adds a devfs driver for tape drives
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --This driver creates a file for each tape drive.
 

@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/drivers/sign.lua
+--description: adds a devfs driver for sign upgrades
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --This driver creates a file for each sign upgrade.
 

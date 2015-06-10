@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/devfs/stringfile.lua
+--description: implements files that can be getters/setters for string values
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --TODO: documentation
 --creates a file table that can be used by the driver library

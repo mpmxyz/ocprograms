@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/mpm/config.lua
+--description: simple reading and verification of config files
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 local config = {}
 

@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : bin/tar.lua
+--description: creating, viewing and extracting tar archives on disk and tape
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : http://oc.cil.li/index.php?/topic/421-tar-for-opencomputers/
+-----------------------------------------------------
 --[[
   tar archiver for OpenComputers
   for further information check the usage text or man page
@@ -634,11 +641,15 @@ actions["list"]    = actions.t
 actions["extract"] = actions.x
 actions["get"]     = actions.x
 
+local debugEnabled = false
+
 local function main(...)
   --variables containing the processed arguments
   local action, files
   --prepare arguments
   local params, options = shell.parse(...)
+  --add stacktrace to output
+  debugEnabled = options.debug
   --quick help
   if options.help then
     print(USAGE_TEXT)
@@ -761,7 +772,17 @@ local function main(...)
   action(files, options, ignoredObjects)
 end
 
-local ok, error = xpcall(main, debug.traceback, ...)
+--adding stack trace when --debug is used
+local function errorFormatter(msg)
+  msg = msg:gsub("^[^%:]+%:[^%:]+%: ","")
+  if debugEnabled then
+    --add traceback when debugging
+    return debug.traceback(msg, 3)
+  end
+  return msg
+end
+
+local ok, msg = xpcall(main, errorFormatter, ...)
 if not ok then
-  io.stdout:write(error)
+  io.stdout:write(msg)
 end

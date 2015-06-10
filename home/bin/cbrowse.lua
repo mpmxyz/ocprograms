@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : bin/cbrowse.lua
+--description: lua command line with advanced value display
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : http://oc.cil.li/index.php?/topic/576-cbrowse-inspecting-lua-components-and-other-objects/
+-----------------------------------------------------
 --[[
 
 

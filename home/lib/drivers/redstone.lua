@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/drivers/redstone.lua
+--description: adds a devfs driver for redstone components
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --This driver creates a file interface for redstone components.
 --Each component has got the following file structure:

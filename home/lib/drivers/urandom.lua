@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/drivers/urandom.lua
+--description: adds /dev/urandom (and /dev/random until there is a true randomness source)
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --This driver creates the file /dev/urandom.
 --It also creates a link from /dev/random to /dev/urandom until there is a special driver featuring a "real" randomness source.

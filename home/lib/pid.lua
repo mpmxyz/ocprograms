@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/pid.lua
+--description: a library for PID controllers that run in the background
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : http://oc.cil.li/index.php?/topic/558-pid-pid-controllers-for-your-reactor-library-included/
+-----------------------------------------------------
 
 --loading libraries
 local event = require("event")

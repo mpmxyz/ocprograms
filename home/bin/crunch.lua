@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : bin/crunch.lua
+--description: lua source code compressor
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : http://oc.cil.li/index.php?/topic/511-crunch-break-the-4k-limit/
+-----------------------------------------------------
 --[[
   source code compressor for OpenComputers
   for further information check the usage text or man page

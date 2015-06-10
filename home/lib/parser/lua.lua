@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/parser/lua.lua
+--description: parsing configuration for lua code
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --requires parser.main for simple operator definitions
 local parser = require 'parser.main'

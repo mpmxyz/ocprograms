@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/drivers/stdio.lua
+--description: adds /dev/stdin, /dev/stdout and /dev/stderr
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --loading libraries
 local driver = require("devfs.driver")

@@ -1,3 +1,11 @@
+-----------------------------------------------------
+--name       : lib/mpm/component_filter.lua
+--description: intercepts component access to enable modifications
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
+
 --[[
   "component_filter" allows you to apply filters to component methods.
   When you 'apply' a list of filters the component.invoke function is replaced. *TODO: UPDATE DESCRIPTION*

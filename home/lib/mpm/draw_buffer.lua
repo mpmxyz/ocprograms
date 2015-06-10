@@ -1,3 +1,12 @@
+-----------------------------------------------------
+--name       : lib/mpm/draw_buffer.lua
+--description: speeds up drawing by combining multiple drawing calls
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
+
+
 --[[
 ****DRAW BUFFER****
 --

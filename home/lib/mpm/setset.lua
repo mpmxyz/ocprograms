@@ -1,5 +1,10 @@
-
---an implementation of a set of sets to ensure raw equality for sets with equal contents.
+-----------------------------------------------------
+--name       : lib/mpm/setset.lua
+--description: a set of sets that helps to ensure a raw equality between sets with same contents
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --load libraries
 local cache = require("mpm.cache").wrap

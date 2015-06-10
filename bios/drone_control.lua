@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : bios/drone_control.lua
+--description: a remote control for drones (drone bios)
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --TODO: goto
 --TODO: feedback
