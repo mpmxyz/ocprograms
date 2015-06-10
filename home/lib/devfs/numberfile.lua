@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/devfs/numberfile.lua
+--description: implements files that can be getters/setters for number values
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --TODO: documentation
 --creates a file table that can be used by the driver library

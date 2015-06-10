@@ -1,3 +1,11 @@
+-----------------------------------------------------
+--name       : lib/mpm/auto_progress.lua
+--description: display progress bars while your program is doing something
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : http://oc.cil.li/index.php?/topic/420-mpmauto-progress-a-console-progress-bar-for-impatient-users/
+-----------------------------------------------------
+
 --[[
   auto_progress 
   allows you to create an object that displays a nice progress bar when things take a long time

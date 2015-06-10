@@ -1,4 +1,12 @@
 #!/bin/sh
+####################################################
+#name       : tarall.sh
+#description: creates tar archives for the sub projects
+#author     : mpmxyz
+#github page: https://github.com/mpmxyz/ocprograms
+#forum page : none
+####################################################
+
 #reminder: just execute "sh < tarall.sh" when using windows file system...
 ##complete package
 tar --numeric-owner -cf tars/all.tar boot home pids usr

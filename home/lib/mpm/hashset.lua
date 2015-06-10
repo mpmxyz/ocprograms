@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/mpm/hashset.lua
+--description: a hashset implementation not relying on raw equality
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --a quick and dirty hashset implementation using a given equality function
 --(Lua tables are very nice but only support raw equality.)

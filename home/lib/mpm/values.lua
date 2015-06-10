@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/mpm/hashset.lua
+--description: allows using raw values or getters for the same property
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 local values = {}
 --type sets used to extract values

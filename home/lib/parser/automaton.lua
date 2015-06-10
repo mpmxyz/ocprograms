@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/parser/automaton.lua
+--description: automaton.merge allows converting a non deterministic finite automaton to a deterministic one
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 local cache = require("mpm.cache").wrap
 

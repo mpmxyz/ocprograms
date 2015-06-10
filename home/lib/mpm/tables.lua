@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/mpm/tables.lua
+--description: drawing formatted tables
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 local unicode = require("unicode")
 local values = require("mpm.values")

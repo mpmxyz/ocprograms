@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : bin/drone_control.lua
+--description: a remote control for drones (controlling program)
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 local keyboard = require("keyboard")
 local component = require("component")

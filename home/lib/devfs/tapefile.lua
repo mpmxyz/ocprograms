@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/devfs/tapefile.lua
+--description: allows accessing tape drives as big files
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 
 

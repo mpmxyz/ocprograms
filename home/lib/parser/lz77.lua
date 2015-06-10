@@ -1,3 +1,25 @@
+-----------------------------------------------------
+--name       : lib/parser/lz77.lua
+--description: LZ77 variant made to store compressed lua sources in long strings
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
+
+--[[
+  abaca
+  window size = 3
+  SA[0] = {0}
+  SA[1] = {0,1}
+  SA[2] = {0,1,2}
+  SA[4] = {0,1,3,2}
+  SA[5] = {0,3,2,4}
+  LCP[0] = {nil}
+  LCP[1] = {nil, 0}
+  LCP[2] = {nil, 0, 0}
+  LCP[3] = {nil, 0, 1, 0}
+  LCP[4] = {nil, 0, 0, 0}
+]]
 
 
 local lz77 = {}

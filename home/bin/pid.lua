@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : bin/pid.lua
+--description: starting, debugging and stopping PID controllers
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : http://oc.cil.li/index.php?/topic/558-pid-pid-controllers-for-your-reactor-library-included/
+-----------------------------------------------------
 
 --loading libraries
 local pid=require("pid")

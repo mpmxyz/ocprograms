@@ -1,5 +1,10 @@
-
---This driver creates /dev/null, the digital black hole.
+-----------------------------------------------------
+--name       : lib/drivers/null.lua
+--description: adds /dev/null
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --loading libraries
 local driver = require("devfs.driver")

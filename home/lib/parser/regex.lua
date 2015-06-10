@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/parser/regex.lua
+--description: regular expression library
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 local cache = require("mpm.cache").wrap
 local merge = require("parser.automaton").merge

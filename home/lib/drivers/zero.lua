@@ -1,5 +1,10 @@
-
---This driver creates /dev/zero, a file containing infinite zeroes.
+-----------------------------------------------------
+--name       : lib/drivers/zero.lua
+--description: adds /dev/zero
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --loading libraries
 local driver = require("devfs.driver")

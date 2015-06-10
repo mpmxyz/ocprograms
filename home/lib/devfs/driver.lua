@@ -1,3 +1,11 @@
+-----------------------------------------------------
+--name       : lib/devfs/driver.lua
+--description: organizes devfs drivers and files
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
+
 --drivers[device type] -> driver -> one or multiple file systems or files
 --Drivers should be separate files.
 --listen to component_added/removed events...

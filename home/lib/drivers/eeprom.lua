@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/drivers/eeprom.lua
+--description: eeprom devfs driver
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --This driver creates a directory containing the files "bios", "data" and "label" for each EEPROM.
 

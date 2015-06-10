@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/parser/main.lua
+--description: parsing library featuring a regex based lexer and an EBNF configured LR parser
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 --**load libraries**--
 local cache  = require("mpm.cache").wrap

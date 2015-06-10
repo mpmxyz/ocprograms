@@ -1,5 +1,11 @@
+-----------------------------------------------------
+--name       : lib/mpm/sets.lua
+--description: helper functions to work with table sets
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
---includes helper functions to work with table sets
 
 --library table
 local sets = {}

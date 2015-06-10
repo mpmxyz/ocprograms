@@ -1,3 +1,10 @@
+-----------------------------------------------------
+--name       : lib/mpm/cache.lua
+--description: caching functions made easy
+--author     : mpmxyz
+--github page: https://github.com/mpmxyz/ocprograms
+--forum page : none
+-----------------------------------------------------
 
 
 local cache = {}
