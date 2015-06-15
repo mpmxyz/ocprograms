@@ -11,11 +11,20 @@
   
   TODO: debug output / replacement table (--whatis=T -> "require")
   TODO: optional "local" removal -> make locals globals
-  TODO: string/number optimization
   TODO: general name optimization for everything using ".name"
         (needs black-/whitelist e.g. for table.concat)
   TODO: marking constant expressions -> constant folding
   TODO: dependency tree -> "local" concatenation
+  
+  
+  
+  TODO: modular setup
+    number/string optimization (also unifies some possible variants as "a"/'a', 255/0xFF)
+    .index -> ["index"] (makes analyzing and replacing easier, should only be done where it makes sense)
+    analyze: counts number of uses of several values, including statistics for func"a"-possibilities and a.index possibilities
+    buildTranslator: determines replacement names
+    translator: replaces names
+    ["index"] -> .index (for non replaced indices)
 ]]
 
 --**load libraries**--
@@ -40,21 +49,9 @@ end
 
 --**parse arguments**--
 local files, options = shell.parse(...)
-options.infix = (options.infix or ".cr")
 if options.tree == nil then
   --default: use tree if available
   options.tree = (luaparser.lrTable ~= nil)
-end
-if options.output then
-  local output = {}
-  for file in options.output:gmatch("[^%,%;]+") do
-    output[#output + 1] = file
-  end
-  if #output > 0 then
-    options.output = output
-  else
-    options.output = nil
-  end
 end
 if options.lz77 then
   if options.lz77 == true then
@@ -67,13 +64,10 @@ end
 --checking arguments
 local USAGE_TEXT = [[
 Usage:
-crunch [options] FILES...
+crunch [options] INPUT.lua [OUTPUT, default: INPUT.cr.lua]
 option             description
---infix=INFIX       chars added to the file name
-                    (default: ".cr")
---output=FILE,FILE2 overrides output file names
 --blacklist=a,b...  does not touch given globals
---blacklist=*       does not touch globals
+--blacklist=*       does not touch globals at all
 --tree --notree     enforce doing or not doing
                     full parsing (->renaming)
                     (default: do full parsing
@@ -836,51 +830,49 @@ end
 
 --**main**--
 --compress all given files separately
-for i, file in ipairs(files) do
-  local inputFile = shell.resolve(file)
-  local inputStream = io.open(inputFile, "rb")
-  
-  local outputFile = options.output and options.output[i] or addInfix(inputFile, options.infix)
-  local outputStream = assert(io.open(outputFile, "wb"))
-  local originalStream = outputStream
-  
-  if options.lz77 then
-    --LZ77 SXF option
-    local function lz77output(value)
-      originalStream:write(value)
-    end
-    --create and init a compressor coroutine
-    local lz77yieldedCompress = coroutine.create(lz77.compress)
-    assert(coroutine.resume(lz77yieldedCompress, coroutine.yield, options.lz77, lz77output, true))
-    
-    outputStream = {
-      lz77yieldedCompress = lz77yieldedCompress,
-      write = function(self, value)
-        return assert(coroutine.resume(lz77yieldedCompress, value))
-      end,
-      close = function()
-        return originalStream:close()
-      end,
-    }
-    
-    originalStream:write("local i=[[\n")
+local inputFile = shell.resolve(files[1])
+local inputStream = assert(io.open(inputFile, "rb"))
+
+local outputFile = files[2] and shell.resolve(files[2]) or addInfix(inputFile, ".cr")
+local outputStream = assert(io.open(outputFile, "wb"))
+local originalStream = outputStream
+
+if options.lz77 then
+  --LZ77 SXF option
+  local function lz77output(value)
+    originalStream:write(value)
   end
-  initCompressor()
-  compressor:analyze(inputStream)
-  compressor:buildTranslator()
-  compressor:compress(outputStream)
-  if options.lz77 then
-    --finish lz77 compression
-    while coroutine.status(outputStream.lz77yieldedCompress) == "suspended" do
-      assert(coroutine.resume(outputStream.lz77yieldedCompress, nil))
-    end
-    originalStream:write("]]")
-    --append decompression code
-    originalStream:write(lz77.getSXF("i", "o", options.lz77))
-    --append launcher
-    originalStream:write("\nreturn assert(load(o))(...)")
-  end
+  --create and init a compressor coroutine
+  local lz77yieldedCompress = coroutine.create(lz77.compress)
+  assert(coroutine.resume(lz77yieldedCompress, coroutine.yield, options.lz77, lz77output, true))
   
-  inputStream:close()
-  outputStream:close()
+  outputStream = {
+    lz77yieldedCompress = lz77yieldedCompress,
+    write = function(self, value)
+      return assert(coroutine.resume(lz77yieldedCompress, value))
+    end,
+    close = function()
+      return originalStream:close()
+    end,
+  }
+  
+  originalStream:write("local i=[[\n")
 end
+initCompressor()
+compressor:analyze(inputStream)
+compressor:buildTranslator()
+compressor:compress(outputStream)
+if options.lz77 then
+  --finish lz77 compression
+  while coroutine.status(outputStream.lz77yieldedCompress) == "suspended" do
+    assert(coroutine.resume(outputStream.lz77yieldedCompress, nil))
+  end
+  originalStream:write("]]")
+  --append decompression code
+  originalStream:write(lz77.getSXF("i", "o", options.lz77))
+  --append launcher
+  originalStream:write("\nreturn assert(load(o))(...)")
+end
+
+inputStream:close()
+outputStream:close()
