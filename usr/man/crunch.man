@@ -2,7 +2,7 @@ NAME
   crunch - a source code compressor for OpenComputers
   
 SYNOPSIS
-  crunch [options] FILES...
+  crunch [options] INPUT.lua [OUTPUT, default: INPUT.cr.lua]
   
 DESCRIPTION
   compresses lua source files with minimal changes to behaviour
@@ -25,13 +25,6 @@ OPTIONS
     All length values that are higher are used to define an uncompressed sequence of characters.
     Increasing the maximum reference length therefore reduces the maximum uncompressed sequence length.
     It is therefore best to find a balance between both extremes. (If you really need those 12 bytes...)
-
-  --infix=INFIX
-    adds the given infix to the file name (default: ".cr")
-    file1.lua -> file1.cr.lua; file2 -> file2.cr
-    
-  --output=FILE1,FILE2...,FILEN
-    overrides the output file name for the first N files
     
   --blacklist=name1,name2
     doesn't touch the given globals
@@ -51,12 +44,14 @@ OPTIONS
   
 EXAMPLES
   crunch hello.lua
-    compresses the file hello.lua using hello.cr.lua as output
+    compresses the file "hello.lua" using "hello.cr.lua" as output
 
-  crunch a.lua b.lua c.lua --blacklist=_G,table --output=1.lua,2.lua,3.lua
-    compresses "a.lua", "b.lua" and "c.lua" while leaving any part referring to the globals "_G" and "table" as they are
-    The output is written to the files "1.lua", "2.lua" and "3.lua".
+  crunch --blacklist=_G,table a.lua b.lua
+    compresses "a.lua" while leaving any part referring to the globals "_G" and "table" untouched
+    The output is written to the file "b.lua".
   
-  crunch edit.lua --notree --infix=2
+  crunch --notree edit.lua
     compresses "edit.lua" using only token compression
-    The output is written to the file "edit2.lua".
+    
+  crunch --lz77 edit.lua
+    compresses "edit.lua" with lz77 compression enabled
