@@ -97,6 +97,18 @@ function parser.lexer(loader, patterns, output)
     source = loader
     loader = nil
   end
+  --formatting debug messages
+  local function onError(msg)
+    if type(msg) == "string" then
+      return {
+        error     = msg,
+        line      = currentLine,
+        traceback = debug.traceback(msg, 2),
+      }
+    else
+      return msg
+    end
+  end
   --creates the initial state from all pattern states (+actions)
   local function initState()
     --starting with an empty/invalid state
@@ -123,10 +135,24 @@ function parser.lexer(loader, patterns, output)
   --fromIndex     beginning of the next token  ending of last token + 1
   --currentIndex  index of the next read char  fromIndex (using its new value)
   local function afterAction(newOutput, newPatterns, newFromIndex, newCurrentIndex)
+    local oldFromIndex = fromIndex
     output    = newOutput or output
     patterns  = newPatterns or patterns
     fromIndex = newFromIndex or lastToIndex + 1
     currentIndex = newCurrentIndex or fromIndex
+    --recalculate line number
+    for i = oldFromIndex, fromIndex - 1 do
+      local char = source:byte(i, i)
+      if char == 13 then
+        currentLine = currentLine + 1
+        lastWasCarriageReturn = true
+      elseif char == 10 and not lastWasCarriageReturn then
+        currentLine = currentLine + 1
+      else
+        lastWasCarriageReturn = false
+      end
+    end
+    --reset state
     lastAction = nil
     lastToIndex = nil
     initState()
@@ -140,15 +166,6 @@ function parser.lexer(loader, patterns, output)
     lastDoneIndex = charIndex
     --take character
     local char = source:byte(charIndex, charIndex)
-    --count lines
-    if char == 13 then
-      currentLine = currentLine + 1
-      lastWasCarriageReturn = true
-    elseif char == 10 and not lastWasCarriageReturn then
-      currentLine = currentLine + 1
-    else
-      lastWasCarriageReturn = false
-    end
     --state change
     currentState = currentState[char]
     --check if we reached a dead end
@@ -170,9 +187,9 @@ function parser.lexer(loader, patterns, output)
   --uses its return values to prepare the next initial state
   local function runAction()
     if lastAction == nil then
-      error(("No matching pattern found for: %s"):format(source:sub(fromIndex, lastDoneIndex):sub(1, 1000)))
+      error(("No matching pattern found for: %q"):format(source:sub(fromIndex, lastDoneIndex):sub(1, 1000)), 0)
     end
-    afterAction(lastAction(output, patterns, source, fromIndex, lastToIndex))
+    afterAction(lastAction(output, patterns, source, fromIndex, lastToIndex, currentLine))
   end
   --tries loading the next part of the source
   --is executed when the lexer reaches the ending of the known source
@@ -206,23 +223,19 @@ function parser.lexer(loader, patterns, output)
       currentIndex = currentIndex + 1
     end
     --run it's action or fail if there was no fitting action
-    local ok, err = xpcall(runAction, debug.traceback)
+    local ok, err = xpcall(runAction, onError)
     if not ok then
-      return false, {
-        line = currentLine,
-        error = err,
-      }
+      return false, err
     end
   end
   --finish with executing an eof action
   --(required to be able to throw errors for unfinished strings)
-  assert(lastAction, "Unexpected end of code! (no eof action)")
-  local ok, err = xpcall(runAction, debug.traceback)
+  if lastAction == nil then
+    return false, onError("Unexpected end of file! (no eof action)")
+  end
+  local ok, err = xpcall(runAction, onError)
   if not ok then
-    return false, {
-      line = currentLine,
-      error = err,
-    }
+    return false, err
   end
   return true
 end
@@ -1158,25 +1171,38 @@ function parser.parse(loader, language)
         finished = true
         return
       else
+        ---no rule found: get error information
+        --expected tokens
         local expected = {}
         for k,v in pairs(lrTable) do
           if v[state] then
             expected[#expected + 1] = "'"..k.."'"
           end
         end
+        if #expected == 1 then
+          expected = expected[1]
+        elseif #expected > 1 then
+          expected = "one of: " .. table.concat(expected, " ")
+        else
+          expected = "nothing (already in final state)"
+        end
+        --received token
         local errorToken = (token ~= nextTyp and token[1] and nextTyp ~= token[1]) and (nextTyp .. " '"..token[1].."'") or nextTyp
-        error("Syntax error: got "..errorToken..", expected one of: "..table.concat(expected, " "))
+        --throw error
+        error(("Syntax error: got %s, expected %s"):format(errorToken, expected), 0)
       end
     end
   end
   local function lexerOutput(typ, ...)
-    assert(not finished, "Got token after eof token!")
+    if finished then
+      error("Got token after eof token!", 0)
+    end
     if not ignored[typ] then
       --create an object {typ = typ, ... (other data)}
-      local token = onToken(typ, ...)
+      local token, line = onToken(typ, ...)
       if token then
         --apply rules until next shift command
-        return readToken(token)
+        return readToken(token, line)
       end
     end
     return onIgnored and onIgnored(stack[#stack - 1], typ, ...)
@@ -1187,12 +1213,26 @@ function parser.parse(loader, language)
     return false, err
   end
   --finish parsing by reading <eof> token
-  ok, err = pcall(readToken, {typ = language.eof or "eof"})
+  ok, err = xpcall(
+    readToken,
+    function(err)
+      return {
+        error = err,
+        line  = "eof",
+        traceback = debug.traceback(err, 2),
+      }
+    end,
+    {typ = language.eof or "eof"}
+  )
   if not ok then
-    return false, {error = err, line = "last"}
+    return false, err
   end
   if stack[2].typ ~= language.root then
-    return false, {error = "Stack is not empty!"}
+    return false, {
+      error = "Stack is not empty!",
+      line = "eof",
+      traceback = debug.traceback("Stack is not empty!"),
+    }
   end
   return stack[2]
 end

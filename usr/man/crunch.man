@@ -41,6 +41,9 @@ OPTIONS
     
   --notree
     forces using only token compression (-> no variable renaming)
+    
+  --verbose
+    adds verbose output
   
 EXAMPLES
   crunch hello.lua
