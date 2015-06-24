@@ -138,7 +138,7 @@ function lz77.compress(input, biggestReference, output, sleepBetweenCharacters)
     --force sleeping to avoid too long without yield errors
     amountDone = amountDone + 1
     if sleepBetweenCharacters and os.sleep then
-      if amountDone % 100 == 0 then
+      if amountDone % sleepBetweenCharacters == 0 then
         os.sleep(0.05)
       end
     end
@@ -192,12 +192,9 @@ end
 
 function lz77.getSXF(input, output, biggestReference)
   return (([[
-local j,%output%,s,l,p,f=1,""
-while j <= #i do
-l,s=%input%:byte(j,j+1)s=s or 0
-l=l+(l>13 and 1 or 2)-(l>93 and 1 or 0)s=s-(s>13 and 1 or 0)-(s>93 and 1 or 0)if l>%biggestReference% then
-l=l-%biggestReference%
-%output%=%output%..%input%:sub(j+1,j+l)j=j+l
+local j,%output%,s,l,p,f=1,""while j<=#i do
+l,s=%input%:byte(j,j+1)s=s or 0l=l+(l>13 and 1 or 2)-(l>93 and 1 or 0)s=s-(s>13 and 1 or 0)-(s>93 and 1 or 0)if l>%biggestReference%then
+l=l-%biggestReference%%output%=%output%..%input%:sub(j+1,j+l)j=j+l
 elseif l>2 then
 f=#%output%+(s-253)while l>0 do
 p=%output%:sub(f,f+l-1)%output%=%output%..p
