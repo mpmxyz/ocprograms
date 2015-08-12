@@ -1629,7 +1629,7 @@ if doListing then
   --find libraries (loaded, preloaded and in lib directory)
   local filesystem = require("filesystem")
   libraries = {}
-  --find libraries in files
+  --find libraries in files, TODO: use mpm.lib
   local libFiles = {}--absolute path -> library (
   local function addLibrary(name, path)
     local oldName = libFiles[path]

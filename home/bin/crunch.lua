@@ -11,48 +11,64 @@
   
   TODO: debug output / replacement table (--whatis=T -> "require")
   TODO: optional "local" removal -> make locals globals
-  TODO: general name optimization for everything using ".name"
-        (needs black-/whitelist e.g. for table.concat)
   TODO: marking constant expressions -> constant folding
   TODO: dependency tree -> "local" concatenation
-  
-  
-  
-  TODO: modular setup
-    number/string optimization (also unifies some possible variants as "a"/'a', 255/0xFF)
-    .index -> ["index"] (makes analyzing and replacing easier, should only be done where it makes sense)
-    analyze: counts number of uses of several values, including statistics for func"a"-possibilities and a.index possibilities
-    buildTranslator: determines replacement names
-    translator: replaces names
-    ["index"] -> .index (for non replaced indices)
 ]]
 
 --**load libraries**--
 local parser    = require("parser.main")
 local luaparser = require("parser.lua")
-local lz77      = require("parser.lz77")
 local cache     = require("mpm.cache").wrap
+local lib       = require("mpm.lib")
 
 --pcall require for compatibility with lua standalone
-local ok, shell = pcall(require, "shell")
-if not ok then
-  --minimal implementation
-  shell = {
-    resolve = function(path)
-      return path
-    end,
-    parse = function(...)
-      return {...}, {tree=true}
-    end,
-  }
+local shell
+do
+  local ok
+  ok, shell = pcall(require, "shell")
+  if not ok then
+    --minimal implementation
+    shell = {
+      resolve = function(path)
+        return path
+      end,
+      parse = function(...)
+        return {...}, {}
+      end,
+    }
+  end
+end
+local computer
+do
+  local ok
+  ok, computer = pcall(require, "computer")
+  if not ok then
+    computer = {
+      uptime = function()
+        return 0
+      end,
+    }
+  end
+end
+local event
+do
+  local ok
+  ok, event = pcall(require, "event")
+  if not ok then
+    event = nil
+  end
 end
 
 --**parse arguments**--
 local files, options = shell.parse(...)
+--tree/notree
 if options.tree == nil then
   --default: use tree if available
   options.tree = (luaparser.lrTable ~= nil)
 end
+options.tree = options.tree and not options.notree
+
+--lz77 settings
 if options.lz77 then
   if options.lz77 == true then
     options.lz77 = 80
@@ -61,6 +77,7 @@ if options.lz77 then
   end
 end
 
+--verbose output function
 local verbose
 if options.verbose then
   verbose = function(s, ...)
@@ -92,20 +109,17 @@ if #files == 0 then
 end
 
 --**blacklists**--
-local blacklisted_locals  = {_ENV = true, self = true}
-local blacklisted_globals = {_ENV = true, self = true}
-local blacklisted_outputs = {_ENV = true, self = true}
+local blacklisted_names  = {_ENV = true, self = true}
 
 --blacklist keywords to prevent them being used as a replacement name
 for _, keyword in pairs(luaparser.keywords) do
-  blacklisted_outputs[keyword] = true
+  blacklisted_names[keyword] = true
 end
 
 --blacklist custom names, applies to globals and replacement names
 if type(options.blacklist) == "string" then
   for name in options.blacklist:gmatch(luaparser.patterns.name) do
-    blacklisted_globals[name] = true
-    blacklisted_outputs[name] = true
+    blacklisted_names[name] = true
   end
 end
 
@@ -148,15 +162,22 @@ end
 --determines actions by using the token type as the index for the table 'actions'
 local function traverseTree(node, actions)
   if type(node) == "table" then
-    for _, token in ipairs(node) do
+    --couldn't use ipairs due to "yielding across c boundary" errors
+    local i = 1
+    while node[i] do
+      local token = node[i]
       local typ = type(token) == "table" and token.typ or ""
       local action = actions[typ]
       if action == nil then
         action = actions.default
       end
       if action ~= nil then
-        action(token)
+        local replacement = action(token)
+        if replacement then
+          node[i] = replacement
+        end
       end
+      i = i + 1
     end
   end
 end
@@ -218,7 +239,7 @@ local function createScope()
       forked[k] = v
     end
     --index 0 is used to count the local variables on the stack
-    forked[0] = rawget(parent,0) or 0
+    forked[0] = rawget(parent, 0) or 0
     return forked
   end
   --adds a new local definition
@@ -253,10 +274,10 @@ local compressor
 --creates a generic tree processor
 --takes a table with callbacks (token typ -> function)
 --returns an actions table for traverseTree
-local function getTreeProcessor(callbacks)
+local function createTreeProcessor(callbacks, scope)
   local statements
   local actions
-
+  
   local function onFunction(token)
     --function name <funcbody>
     actions.default (token[1])
@@ -265,31 +286,31 @@ local function getTreeProcessor(callbacks)
   end
   local function onLocal(token)
     actions.default(token[1])
-    local original = compressor.scope:top()
-    local forked = compressor.scope:fork()
+    local original = scope:top()
+    local forked = scope:fork()
     local second = token[2]
     local third  = token[3]
     local fourth = token[4]
     if second == "function" then
       --local function abc <funcbody>
-      compressor.scope:setTop(forked)
-      compressor.scope:newLocal(third[1])
+      scope:setTop(forked)
+      scope:newLocal(third[1])
       actions.default(second)
-      actions.access(third)
+      token[3] = actions.access(third)
       actions.funcbody(fourth)
     elseif second.typ == "namelist" then
       --local a,b,c
-      compressor.scope:setTop(forked)
+      scope:setTop(forked)
       for i = 1, #second, 2 do
-        compressor.scope:newLocal(second[i][1])
+        scope:newLocal(second[i][1])
       end
       actions.namelist(second)
       if third then
         --=d,e,f
-        compressor.scope:setTop(original)
+        scope:setTop(original)
         actions.default(third)
         actions.default(fourth)
-        compressor.scope:setTop(forked)
+        scope:setTop(forked)
       end
     else
       error()
@@ -297,74 +318,74 @@ local function getTreeProcessor(callbacks)
   end
   local function onDo(token)
     --do <block> end
-    compressor.scope:push()
+    scope:push()
     traverseTree(token, actions)
-    compressor.scope:pop()
+    scope:pop()
   end
   local function onRepeat(token)
     --repeat <block> until <exp>
-    compressor.scope:push()
+    scope:push()
     traverseTree(token, actions)
-    compressor.scope:pop()
+    scope:pop()
   end
   local function onFor(token)
     actions.default(token[1])
-    local original = compressor.scope:top()
-    local forked = compressor.scope:fork()
+    local original = scope:top()
+    local forked = scope:fork()
     local second = token[2]
     
-    compressor.scope:setTop(forked)
+    scope:setTop(forked)
     if second.typ == "name" then
       --for name = <exp>,<exp>[,<exp>] do <block> end
-      compressor.scope:newLocal(second[1])
-      actions.access(second)
+      scope:newLocal(second[1])
+      token[2] = actions.access(second)
     elseif second.typ == "namelist" then
       --for name in <explist> do <block> end
       for i = 1, #second, 2 do
-        compressor.scope:newLocal(second[i][1])
+        scope:newLocal(second[i][1])
       end
       actions.namelist(second)
     else
       error()
     end
     local i = 3
-    compressor.scope:setTop(original)
+    scope:setTop(original)
     while token[i] ~= "do" do
       actions.default(token[i])
       i = i + 1
     end
-    compressor.scope:setTop(forked)
+    scope:setTop(forked)
     while token[i] do
       actions.default(token[i])
       i = i + 1
     end
-    compressor.scope:setTop(original)
+    scope:setTop(original)
   end
   local function onIf(token)
     --if exp then block
     actions.default(token[1])
     actions.default(token[2])
     actions.default(token[3])
-    compressor.scope:push()
+    scope:push()
     actions.default(token[4])
-    compressor.scope:pop()
+    scope:pop()
     local i = 5
     while token[i] == "elseif" do
       --elseif exp then block
       actions.default(token[i+0])
       actions.default(token[i+1])
       actions.default(token[i+2])
-      compressor.scope:push()
+      scope:push()
       actions.default(token[i+3])
-      compressor.scope:pop()
+      scope:pop()
       i = i + 4
     end
     if token[i] == "else" then
       --else block
       actions.default(token[i+0])
-      compressor.scope:push()
+      scope:push()
       actions.default(token[i+1])
-      compressor.scope:pop()
+      scope:pop()
     end
     --end
     actions.default(token[#token])
@@ -374,9 +395,9 @@ local function getTreeProcessor(callbacks)
     actions.default(token[1])
     actions.default(token[2])
     actions.default(token[3])
-    compressor.scope:push()
+    scope:push()
     actions.default(token[4])
-    compressor.scope:pop()
+    scope:pop()
     actions.default(token[5])
   end
   
@@ -395,7 +416,7 @@ local function getTreeProcessor(callbacks)
     --get type of first token
     --if it is a name: add usage to name
     if type(token[1]) == "table" and token[1].typ == "name" then
-      actions.access(token[1])
+      token[1] = actions.access(token[1])
       for i = 2, #token do
         actions.default(token[i])
       end
@@ -409,7 +430,7 @@ local function getTreeProcessor(callbacks)
       if i > 1 then
         actions.default(token[i-1])
       end
-      actions.access(token[i])
+      token[i] = actions.access(token[i])
     end
   end
   
@@ -421,9 +442,9 @@ local function getTreeProcessor(callbacks)
   local onFuncname = onVar
   local function onFuncbody(token)
     --(<parlist>) <block> end
-    compressor.scope:push()
+    scope:push()
     traverseTree(token, actions)
-    compressor.scope:pop()
+    scope:pop()
   end
   local function onParlist(token)
     --[name[,name]*[,...]|...]
@@ -433,8 +454,8 @@ local function getTreeProcessor(callbacks)
       end
       local arg = token[i]
       if arg ~= "..." then
-        compressor.scope:newLocal(arg[1])
-        actions.access(arg)
+        scope:newLocal(arg[1])
+        token[i] = actions.access(arg)
       else
         actions.default(arg)
       end
@@ -453,7 +474,12 @@ local function getTreeProcessor(callbacks)
     return traverseTree(token, actions)
   end
   local function onString(token)
+    --process the string with its quotes at once
     actions.default(table.concat(token))
+  end
+  local function onNumber(token)
+    --process the contents of the number
+    actions.default(token[1])
   end
   
   --action look up table
@@ -468,6 +494,7 @@ local function getTreeProcessor(callbacks)
     default  = onDefault,
     access   = onDefault,
     string   = onString,
+    number   = onNumber,
   }
   --add callbacks
   for key, action in pairs(actions) do
@@ -475,384 +502,128 @@ local function getTreeProcessor(callbacks)
     if callback then
       actions[key] = function(token)
         --execute callback before action
-        callback(token)
-        return action(token)
+        local replacement = callback(token) or token
+        action(replacement)
+        return replacement
       end
     end
   end
   return actions
 end
 
---takes a stream and returns a wrapper function
---This function takes a string argument to be written and writes it to the stream.
---Appends a newline in front of the string if necessary for separation. (But only then!)
-local function newWriter(stream)
-  local lastWritten
-  return function(text)
-    if text ~= "" then
-      --detect if space is necessary
-      if lastWritten ~= nil and text:find("^[%w_]") and lastWritten:find("[%w_]$") then
-        stream:write("\n"..text)
-      else
-        stream:write(text)
-      end
-      lastWritten = text
-    end
-  end
-end
-
---value types can be safely localized (in most cases)
-local isValueType = {
-  string = true,
-  number = true,
-  ["nil"] = true,
-  ["true"] = true,
-  ["false"] = true,
-}
-
 local function onError(msg, inputFile)
-  local line = type(msg.line) == "number" and ("%u"):format(msg.line) or msg.line
-  error(("%s:%s: %s"):format(inputFile, line, options.debug and msg.traceback or msg.error), 0)
+  local line = type(msg.line) == "number" and ("%u"):format(msg.line) or msg.line or ""
+  error{msg = ("%s:%s: %s"):format(inputFile, line, options.debug and msg.traceback or msg.error)}
 end
 
---overwrites the compressor variable with a new compressor table
-local function initCompressor()
-  verbose("Initializing Compressor...")
-  
-  compressor = {
-    scope = createScope(),
-    uses = {},
-    stringArgs = {},
-    --used to differentiate between global variable accesses and values
-    knownVariables = {},
-  }
-  
-  if options.tree and not options.notree then
-    --use full parser; more memory consumption but also a lot more possibilities
-    function compressor:analyze(inputStream, inputFile)
-      --simple version: create usage statistics for given names
-      --advanced version: create usage statistics for given variables
-      --(-> 2 different local variables with same name could be treated differently.)
-      --(-> Global variable access could be detected, listed and blacklisted.)
-      --(-> 2 different variables could be unified if they do not interfere with each other)
-      --1st: load tree
-      verbose("Reading input file...")
-      local tree, err = parser.parse(inputStream:lines(512), luaparser)
-      if err then
-        onError(err, inputFile)
-      end
-      --TODO: compress strings
-      --2nd: traverse tree, remember top level names
-      local function onAccess(id)
-        self.uses[id] = (self.uses[id] or 0) + 1
-      end
-      local function onVariable(token)
-        --variable access
-        local name = token[1]
-        self.knownVariables[name] = true
-        local id = self.scope:get(name)
-        onAccess(id)
-      end
-      local function onDefault(token)
-        --string, number, boolean
-        if type(token) == "string" then
-          if isValueType[token] then
-            onAccess(self.scope:get(token))
-          end
-        else
-          if isValueType[token.typ] then
-            onAccess(self.scope:get(table.concat(token)))
-          elseif token.typ == "args" then
-            --replacing 'func"param"' by 'func(a)' and not by 'func a'
-            if #token == 1 then
-              local first = token[1]
-              if first.typ == "string" then
-                local content = table.concat(first)
-                local id = self.scope:get(content)
-                self.stringArgs[id] = (self.stringArgs[id] or 0) + 1
-              end
-            end
-          end
-        end
-      end
-      
-      self.scope:push()
-      traverseTree(tree, getTreeProcessor{
-        access = onVariable,
-        default = onDefault,
-      })
-      self.scope:pop()
-      self.tree = tree
-    end
-    --creates a dictionary table that is used to replace variables, constants, etc.
-    function compressor:buildTranslator()
-      --simple version:
-      --add blacklisted names
-      --sort other names
-      --get short version of non blacklisted names
-      verbose("Building dictionary...")
-      self.dictionary = {}
-      local sortedAccessList = {}
-      --combine all local variables with the same stack index
-      --the 'merged' name is a name that represents all variables with the same stack index
-      local function getMergedName(id)
-        local name = self.scope.names[id]
-        local stackIndex = self.scope.stackIndices[id]
-        if stackIndex then
-          if blacklisted_locals[name] then
-            return
-          end
-        else
-          if blacklisted_globals[name] or (options.blacklist=="*" and self.knownVariables[name]) then
-            return
-          end
-        end
-        return stackIndex or name
-      end
-      --counts the numer of uses of the merged name
-      local mergedUses = {}
-      --counts the number of times a string is used as a function argument without brackets
-      local mergedStringArgs = {}
-      for id in ipairs(self.uses) do
-        local mergedName = getMergedName(id)
-        if mergedName then
-          sortedAccessList[#sortedAccessList + 1] = mergedName
-          mergedUses[mergedName] = (mergedUses[mergedName] or 0) + self.uses[id]
-          --add an additional use for globals (local definition)
-          if type(mergedName) == "string" then
-            mergedUses[mergedName] = mergedUses[mergedName] + 1
-          end
-          --remember f"arg" -> f(arg) overhead for string substitution
-          mergedStringArgs[mergedName] = (mergedStringArgs[mergedName] or 0) + (self.stringArgs[id] or 0)
-        end
-      end
-      --sort list of names
-      table.sort(sortedAccessList, function(a, b)
-        local usesA, usesB = mergedUses[a], mergedUses[b]
-        if usesA == usesB then
-          --prioritize local optimization to global optimization if usage counter is equal
-          -->removes local declaration overhead in some cases
-          return type(a) == "number" and type(b) ~= "number"
-        end
-        return usesA > usesB
-      end)
-      
-      --an additional blacklist to avoid generating names that are used for globals
-      local blacklisted_due_collision = {}
-      local function iterateNames(onName)
-        local ranking = 1
-        for _, mergedName in ipairs(sortedAccessList) do
-          local newName
-          repeat
-            newName = numberToName(ranking)
-            ranking = ranking + 1
-            --skip invalid names
-          until not blacklisted_outputs[newName] and not blacklisted_due_collision[newName]
-          if onName(mergedName, newName) then
-            --renaming rejected
-            ranking = ranking - 1
-          end
-        end
-      end
-      --check how many bytes would be saved by global-localization
-      --don't localize where it would not make sense
-      do
-        --1st filter: don't change globals that aren't used often enough
-        local filteredAccessList
-        --used to generate local definition
-        local localizedGlobals
-        --used to limit the number of locals
-        local localizationSavings
-        local totalSavedBytes
-        repeat
-          local finished = true
-          filteredAccessList  = {}
-          localizedGlobals    = {}
-          localizationSavings = {}
-          totalSavedBytes     = -5 --"local"
-          iterateNames(function(mergedName, newName)
-            if type(mergedName) == "string" then
-              --global
-              local overhead = #mergedName + #newName + 2 --2x(" "/"=" or ",")
-              local usageSavings
-              if #newName + 2 < #mergedName then
-                --replacing string arguments without brackets
-                usageSavings = (#mergedName - #newName) * (mergedUses[mergedName] - 1) - 2 * mergedStringArgs[mergedName]
-              else
-                --not replacing string arguments
-                usageSavings = (#mergedName - #newName) * (mergedUses[mergedName] - 1 - mergedStringArgs[mergedName])
-              end
-              local savedBytes = usageSavings - overhead
-              if savedBytes <= 0 then
-                --prevent generating a variable with the same name
-                if not blacklisted_due_collision[mergedName] then
-                  --TODO: avoid repetition if the name hasn't been generated yet
-                  finished = false
-                end
-                blacklisted_due_collision[mergedName] = true
-                return true
-              end
-              totalSavedBytes = totalSavedBytes + savedBytes
-              localizationSavings[mergedName] = savedBytes
-              localizedGlobals[#localizedGlobals + 1] = self.scope:get(mergedName)
-            end
-            filteredAccessList[#filteredAccessList + 1] = mergedName
-          end)
-        until finished
-        sortedAccessList = filteredAccessList
-        if totalSavedBytes > 0 then
-          --We saved some bytes: go ahead
-          self.localizedGlobals = localizedGlobals
-          self.localizationSavings = localizationSavings
-        else
-          --Overhead is too big.
-          filteredAccessList = {}
-          iterateNames(function(mergedName, newName)
-            if type(mergedName) == "string" then
-              --too much localization overhead: ignore globals; blacklist their names
-              blacklisted_due_collision[mergedName] = true
-              return true
-            end
-            filteredAccessList[#filteredAccessList + 1] = mergedName
-          end)
-          --TODO: what about 
-          sortedAccessList = filteredAccessList
-        end
-        --2nd filter: limit number of local variables by removing the least significant localizations
-        --TODO
-      end
-      --give them replacement names
-      local mergedDictionary = {}
-      iterateNames(function(mergedName, newName)
-        mergedDictionary[mergedName] = newName
-      end)
-      --assign replacement names to the individual ids
-      for id in ipairs(self.uses) do
-        local mergedName = getMergedName(id)
-        if mergedName then
-          self.dictionary[id] = mergedDictionary[mergedName]
-        end
-      end
-    end
-    --outputs compressed code to the given file
-    function compressor:compress(outputStream)
-      verbose("Writing output file...")
-      local write = newWriter(outputStream)
-      
-      --2nd: traverse tree, remember top level names
-      local function getReplacement(id)
-        return self.dictionary[id]
-      end
-      --shorten variable names
-      local function onVariable(token)
-        local id = self.scope:get(token[1])
-        local replacement = getReplacement(id)
-        if replacement then
-          token[1] = replacement
-        end
-      end
-      local function onDefault(token)
-        if type(token) == "string" then
-          --replace true, false and nil
-          if isValueType[token] then
-            local replacement = getReplacement(self.scope:get(token))
-            if replacement then
-              token = replacement
-            end
-          end
-          write(token)
-        else
-          if isValueType[token.typ] then
-            --replace strings and numbers
-            local content = table.concat(token)
-            local id = self.scope:get(content)
-            local replacement = not token.locked and getReplacement(id) or content
-            
-            token[1] = replacement
-            for i = 2, #token do
-              token[i] = nil
-            end
-          elseif token.typ == "args" then
-            --replacing 'func"param"' by 'func(a)' and not by 'func a'
-            if #token == 1 then
-              local first = token[1]
-              if first.typ == "string" then
-                local content = table.concat(first)
-                local id = self.scope:get(content)
-                local replacement = getReplacement(id)
-                if replacement and #replacement + 2 < #content then
-                  --add brackets if the string is replaced
-                  token[1] = "("
-                  token[2] = first
-                  token[3] = ")"
-                else
-                  first.locked = true
-                end
-              end
-            end
-          end
-        end
-      end
-      
-      if self.localizedGlobals then
-        --rewrite long global names to locals
-        write("local ")
-        for i, id in ipairs(self.localizedGlobals) do
-          if i > 1 then
-            write(",")
-          end
-          write(self.dictionary[id])
-        end
-        write("=")
-        for i, id in ipairs(self.localizedGlobals) do
-          if i > 1 then
-            write(",")
-          end
-          write(self.scope.names[id])
-        end
-      end
-      
-      --init scope
-      self.scope = createScope()
-      self.scope:push()
-      --iterate tree
-      traverseTree(self.tree, getTreeProcessor{
-        access = onVariable,
-        default = onDefault,
-      })
-      self.scope:pop()
-    end
-  else
-    --lexer only; just removes unnecessary whitespace and comments
-    function compressor:analyze(inputStream, inputFile)
-      --remember input stream
-      self.inputStream = inputStream
-      self.inputFile = inputFile
-    end
-    function compressor:buildTranslator()
-      --do nothing
-    end
-    function compressor:compress(outputStream)
-      --read and write at once
-      --TODO: Does that also work when input==output?
-      verbose("Compressing...")
-      local write = newWriter(outputStream)
-      local function output(typ, source, from, to, line, extractedToken)
-        if not luaparser.ignored[typ] then
-          write(extractedToken or source:sub(from, to))
-        end
-      end
-      local ok, err = parser.lexer(self.inputStream:lines(512), luaparser.lexer, output)
-      if not ok then
-        onError(err, inputFile)
-      end
-    end
-  end
+local function isIdentifier(name)
+  return type(name) == "string" and not luaparser.keywords[name] and name:match(luaparser.patterns.name) == name
 end
 
 --**main**--
 --compress all given files separately
+
+local loadedModules
+local cleanupModules
+local function loadModules()
+  loadedModules  = {}
+  cleanupModules = {}
+  --iterate crunch libraries
+  for libname, absolutePath in lib.list((package.path:gsub("%?","crunch/?"))) do
+    --load libraries, TODO: don't use require to avoid keeping modules in memory?
+    local module = require("crunch." .. libname)
+    if type(module) == "table" then
+      if module.run ~= nil then
+        --add all libraries with "run" method to the list
+        table.insert(loadedModules, module)
+      end
+      if module.cleanup then
+        table.insert(cleanupModules, module)
+      end
+    end
+  end
+end
+
+local function runModules(context, options)
+  local wrap
+  if options.debug then
+    wrap = function(f)
+      return function(...)
+        --the reason of wrapping: proper traceback information
+        local ok, msg = xpcall(f, debug.traceback, ...)
+        if not ok then
+          --also included: proper error object forwarding
+          if type(msg) == "string" then
+            error({msg = msg}, 0)
+          else
+            error(msg, 0)
+          end
+        end
+      end
+    end
+  else
+    wrap = function(f)
+      return f
+    end
+  end
+  
+  local lastYield = computer.uptime()
+  local function antiTimeout()
+    if computer.uptime() > lastYield + 0.1 then
+      local ev = event.pull(0.0)
+      if ev == "interrupted" then
+        error{msg = "interrupted"}
+      end
+      lastYield = computer.uptime()
+    end
+  end
+  
+  
+  --list of running coroutines
+  local running = {}
+  --resumes every coroutine using the given parameters
+  local function runStep(...)
+    --number of running coroutines remaining after execution
+    --(needed to update the list of running coroutines in place)
+    local nAlive = 0
+    for i = 1, #running do
+      local current = running[i]
+      local ok, err = coroutine.resume(current, ...)
+      if not ok then
+        error(err, 0)
+      end
+      antiTimeout()
+      if coroutine.status(current) == "suspended" then
+        nAlive = nAlive + 1
+        running[nAlive] = current
+      end
+    end
+    --deleting old entries at the end of the table
+    for i = nAlive + 1, #running do
+      running[i] = nil
+    end
+    return (nAlive > 0)
+  end
+  
+  --instantiate module coroutines
+  for i = 1, #loadedModules do
+    running[i] = coroutine.create(wrap(loadedModules[i].run))
+  end
+  
+  --run modules for the first time (parameters used for initialization)
+  if runStep(context, options) then
+    --some parts yielded: finish execution
+    while runStep() do end
+  end
+  --do cleanup in reversed order
+  for i = #cleanupModules, 1, -1 do
+    cleanupModules[i].cleanup(context, options)
+    antiTimeout()
+  end
+end
+
 local function main()
+  --opening file streams
   local inputFile = shell.resolve(files[1])
   verbose("Input file: %s", inputFile)
   local inputStream, err = io.open(inputFile, "rb")
@@ -866,60 +637,37 @@ local function main()
   if outputStream == nil then
     error(("%s: %s"):format(outputFile, err or "Could not write to file!"), 0)
   end
+  --creating context table
+  local context = {
+    inputFile = inputFile,
+    inputStream = inputStream,
+    outputFile = outputFile,
+    outputStream = outputStream,
+    onError = onError,
+    verbose = verbose,
+    createScope = createScope,
+    createTreeProcessor = createTreeProcessor,
+    traverseTree = traverseTree,
+    isIdentifier = isIdentifier,
+    blacklisted_names = blacklisted_names,
+    numberToName = numberToName,
+  }
+  --executing compression modules
+  loadModules()
+  runModules(context, options)
   
-  local originalStream = outputStream
-
-  if options.lz77 then
-    verbose("Adding LZ77 wrapper...")
-    --LZ77 SXF option
-    local function lz77output(value)
-      originalStream:write(value)
-    end
-    --create and init a compressor coroutine
-    local lz77yieldedCompress = coroutine.create(lz77.compress)
-    assert(coroutine.resume(lz77yieldedCompress, coroutine.yield, options.lz77, lz77output, 1000))
-    
-    outputStream = {
-      lz77yieldedCompress = lz77yieldedCompress,
-      write = function(self, value)
-        return assert(coroutine.resume(lz77yieldedCompress, value))
-      end,
-      close = function()
-        return originalStream:close()
-      end,
-      seek = function(self, ...)
-        return originalStream:seek(...)
-      end,
-    }
-    
-    originalStream:write("local i=[[\n")
-  end
-  initCompressor()
-  compressor:analyze(inputStream, inputFile)
-  compressor:buildTranslator()
-  compressor:compress(outputStream)
-  if options.lz77 then
-    verbose("Adding LZ77 decompressor...")
-    --finish lz77 compression
-    while coroutine.status(outputStream.lz77yieldedCompress) == "suspended" do
-      assert(coroutine.resume(outputStream.lz77yieldedCompress, nil))
-    end
-    originalStream:write("]]")
-    --append decompression code
-    originalStream:write(lz77.getSXF("i", "o", options.lz77))
-    --append launcher
-    originalStream:write("\nreturn assert(load(o))(...)")
-  end
+  --verbose only: printing output details
   local inSize  = inputStream:seek()
   local outSize = outputStream:seek()
   verbose("Old size: %u bytes", inSize)
   verbose("New size: %u bytes", outSize)
   verbose("New/Old: %.1f%%", 100 * outSize / inSize)
+  --closing file streams
   inputStream:close()
   outputStream:close()
 end
 
-local ok, err = pcall(main)
+local ok, err = xpcall(main, options.debug and debug.traceback or function(msg) return msg end)
 if not ok then
-  io.stderr:write(err)
+  io.stderr:write(err.msg or err)
 end

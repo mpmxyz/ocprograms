@@ -127,6 +127,9 @@ function parser.lexer(loader, patterns, output)
   end
   initState()
   
+  --used to avoid counting "\r\n" as two newlines
+  local lastWasCarriageReturn = false
+  
   --is called to process the return values of the pattern actions
   --The following table shows the values used when an action returns nil:
   --name          what it is                   default (returned value == nil)
@@ -157,8 +160,6 @@ function parser.lexer(loader, patterns, output)
     lastToIndex = nil
     initState()
   end
-  --used to avoid counting "\r\n" as two newlines
-  local lastWasCarriageReturn = false
   --reads the source at the given position, proceeds to the next state and
   --changes the last valid action if applicable
   --returns true when current state is empty / invalid
@@ -1199,10 +1200,10 @@ function parser.parse(loader, language)
     end
     if not ignored[typ] then
       --create an object {typ = typ, ... (other data)}
-      local token, line = onToken(typ, ...)
+      local token = onToken(typ, ...)
       if token then
         --apply rules until next shift command
-        return readToken(token, line)
+        return readToken(token)
       end
     end
     return onIgnored and onIgnored(stack[#stack - 1], typ, ...)
