@@ -9,10 +9,9 @@ local cache     = require("mpm.cache")
 
 return {
   run = function(context, options)
-    context.verbose("Counting string usage...")
-    
     --This code only works if you know how the code is structured.
     if options.tree then
+      context.verbose("Counting string usage...")
       local processor
       processor = {
         var = function(token)
