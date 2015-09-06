@@ -20,22 +20,24 @@ local registry = {}
 --**TYPES AND VALIDATION**--
 
 --[[
-  pid.new(controller, id, enable) -> controller
-  Adds some methods to the given table to make it a full pid controller.
-  It is also automaticly started unless enable is false. (default is true)
-  For convenience it also returns the controller table given as the first parameter.
+  pid.new(data, id, enable) -> controller
+  Creates a pid controller using the given data table and returns a controller table.
+  The controller table is connected to the data table via a __index metamethod.
+  That allows for updates via a shared data object and local overrides by writing to individual controllers.
+  For convenience it is also automaticly started unless enable is false. (default is true)
   Controllers can be registered globally using the id parameter. (or field; but the parameter takes priority)
   There can only be one controller with the same id. Existing controllers will be replaced.
   
-  Here is a list of methods added:
-  name                    description
-   start()                 starts the controller
-   isRunning() -> boolean  returns true if it is running
-   stop()                  stops the controller
+  Here is a list of controller methods:
+  name                            description
+   start()                         starts the controller
+   isRunning() -> boolean          returns true if it is running
+   stop()                          stops the controller
+   isValid()   -> boolean, string  returns true if the controller is valid, false and an error message if not
   
   This is the format the data table is expected to use.
   "value" types can either be a number or a getter function returning one.
-  controller={
+  data={
     sensor=value,               --a function returning the value being controlled
     target=value,               --the value that the controlled value should reach
     actuator={                  --The actuator is the thing that is 'working' on your system.
@@ -70,23 +72,30 @@ local registry = {}
     output=p*error+d*derror+offset,  --current output, sum of P, I and D terms
   }
 ]]
-function pid.new(data, id, enable)
+function pid.new(data, id, enable, stopPrevious)
+  local controller = setmetatable({}, {__index = data})
   local lastError
   local offset
   local dt
-  
-  local function callback()
+  ---default controller
+  function controller:doStep()
+    --the info table can be used for monitoring and debugging of a system
     local info = {}
     --get constants
-    local p = values.get(data.factors.p) or 0
-    local i = values.get(data.factors.i) or 0
-    local d = values.get(data.factors.d) or 0
+    local p = values.get(self.factors.p) or 0
+    local i = values.get(self.factors.i) or 0
+    local d = values.get(self.factors.d) or 0
     
     --get some information...
-    local value        = values.get(data.sensor)
-    local target       = values.get(data.target)
+    local value        = values.get(self.sensor)
+    local target       = values.get(self.target)
     --error(t)
     local currentError = target - value
+    
+    --access some actuator values
+    local actuator   = self.actuator
+    local controlMax = values.get(actuator.max)
+    local controlMin = values.get(actuator.min)
     
     --some info values
     info.p  = p
@@ -97,73 +106,91 @@ function pid.new(data, id, enable)
     info.target    = target
     info.error     = currentError
     info.lastError = lastError
+    info.controlMin = controlMin
+    info.controlMax = controlMax
     
-    --access some actuator values
-    local actuator   = data.actuator
-    local controlMax = values.get(actuator.max)
-    local controlMin = values.get(actuator.min)
-    
+    local output
     if lastError then
       --calculate error'(t)
-      local errorDiff = (currentError - lastError) / dt
+      local derror = (currentError - lastError) / dt
       --calculate output value
-      local currentControl = (p + i * dt) * currentError + d * errorDiff + offset
+      output = (p + i * dt) * currentError + d * derror + offset
       --now clamp it within range and decide if it is safe to do the integration
       local doIntegration = true
       local doffset = i * currentError * dt
-      if controlMin and currentControl < controlMin then
-        currentControl=controlMin
-        doIntegration = (doffset > 0)
-      elseif controlMax and currentControl > controlMax then
-        currentControl=controlMax
-        doIntegration = (doffset < 0)
+      if controlMin and output < controlMin then
+        output = controlMin
+        doIntegration  = (doffset > 0)
+      elseif controlMax and output > controlMax then
+        output = controlMax
+        doIntegration  = (doffset < 0)
       end
       if doIntegration then
         --integrate
         offset = offset + doffset
+      else
+        --don't integrate: reset doffset for correct info table values
+        doffset = 0
       end
-      --'return' output value
-      actuator.set(currentControl)
-      
       --more info values
       info.doffset = doffset
-      info.derror  = errorDiff
-      info.output  = currentControl
+      info.derror  = derror
     else
-      --initialize: calculating a good offset to reflect the current state
-      --currentControl = p * currentError + offset + d * 0
-      --offset = currentControl - p * currentError
+      --initialize (1/2): determining an initial output
       local defaultControl
       if controlMin then
         defaultControl = controlMax and ((controlMin+controlMax)/2) or controlMin
       else
         defaultControl = controlMax or 0
       end
-      local currentControl = values.get(actuator.get or actuator.initial or defaultControl)
-      local currentControl = values.get(actuator.get or actuator.initial or defaultControl)
-      offset = (currentControl - p * currentError)
+      output = values.get(actuator.get or actuator.initial or defaultControl)
+      --initialize (2/2): calculating a good offset to reflect the current state
+      --output = p * currentError + offset + d * 0
+      --offset = output - p * currentError
+      offset = (output - p * currentError)
+      
+      --more info values
+      info.doffset = 0
+      info.derror  = 0
     end
+    
+    --'return' output value
+    actuator.set(output)
     
     --remember last error to calculate error'
     lastError = currentError
     
     --more info values
+    info.output = output
     info.offset = offset
-    --save info data
-    data.info=info
+    --save info table
+    self.info = info
   end
-  function data:start()
+  
+  ---managing controller execution (start/stop etc.)
+  local function callback()
+    --remove controller from running list
+    running[controller] = nil
+    --calculate new delta t in seconds
+    dt = 1.0 / values.get(controller.frequency)
+    --calculate output
+    controller:doStep()
+    --initiate next step; this part is never reached if controller execution failed
+    running[controller] = event.timer(dt, callback)
+  end
+  function controller:start()
     --avoid multiple timers running for one pid controller
     self:stop()
-    --calculate dt in seconds
-    dt = 1.0 / self.frequency
-    --start timer
-    running[self] = event.timer(dt, callback, math.huge)
+    --avoid run time errors by doing a small check before starting
+    --The controller remains stopped if this fails. 
+    self:assertValid()
+    --run controller
+    callback()
   end
-  function data:isRunning()
+  function controller:isRunning()
     return running[self] ~= nil
   end
-  function data:stop()
+  function controller:stop()
     local timerID = running[self]
     if timerID then
       --timer is running
@@ -172,55 +199,67 @@ function pid.new(data, id, enable)
       running[self] = nil
     end
   end
-
-  --checking data contents (errors during execution are hidden in event.log)
-  values.checkTable(data.actuator,        "actuator")
-  values.checkCallable(data.actuator.set, "actuator.set")
-  values.checkNumber(data.actuator.get,   "actuator.get", true)
-  values.checkNumber(data.actuator.min,   "actuator.min", true)
-  values.checkNumber(data.actuator.max,   "actuator.max", true)
-  values.checkTable(data.factors,         "factors")
-  values.checkNumber(data.factors.p,      "factors.p",    true)
-  values.checkNumber(data.factors.i,      "factors.i",    true)
-  values.checkNumber(data.factors.d,      "factors.d",    true)
-  --The library wouldn't have trouble without those factors.
-  --But it wouldn't make sense to use it that way.
-  assert((data.factors.p or data.factors.i or data.factors.d) ~= nil, "All factors are nil!")
-  values.checkNumber(data.target,         "target")
-  values.checkNumber(data.sensor,         "sensor")
-  values.checkNumber(data.frequency,      "frequency")
-  --PID registry
-  return pid.set(data, id, enable)
-end
---registers the PID controller for the given id
-function pid.set(controller, id, enable)
-  if id == nil then
-    id = controller.id
-  elseif controller == nil then
-    controller = registry[id]
+  
+  ---validation
+  function controller:isValid()
+    return pcall(self.assertValid, self)
   end
-  assert(type(controller) == "table", "Expected controller table!")
-  if id ~= nil then
-    pid.remove(id)
-    registry[id] = controller
+  function controller:assertValid()
+    --checking controller contents (errors during execution are hidden in event.log)
+    values.checkTable(self.actuator,        "actuator")
+    values.checkCallable(self.actuator.set, "actuator.set")
+    values.checkNumber(self.actuator.get,   "actuator.get", true)
+    values.checkNumber(self.actuator.min,   "actuator.min", true)
+    values.checkNumber(self.actuator.max,   "actuator.max", true)
+    values.checkTable(self.factors,         "factors")
+    values.checkNumber(self.factors.p,      "factors.p",    true)
+    values.checkNumber(self.factors.i,      "factors.i",    true)
+    values.checkNumber(self.factors.d,      "factors.d",    true)
+    --The library wouldn't have trouble without those factors.
+    --But it wouldn't make sense to use it that way.
+    assert((self.factors.p or self.factors.i or self.factors.d) ~= nil, "All pid factors are nil")
+    values.checkNumber(self.target,    "target")
+    values.checkNumber(self.sensor,    "sensor")
+    values.checkNumber(self.frequency, "frequency")
+  end
+  ---controller registry
+  controller.register = pid.register
+  
+  ---initialization
+  local previous, previousIsRunning
+  if id or controller.id then
+    previous, previousIsRunning = controller:register(stopPrevious, id)
   end
   if enable then
     controller:start()
   end
   return controller
 end
+---controller registry
 --gets the PID controller for the given id
 function pid.get(id)
   return registry[id]
 end
---stops and removes the pid controller with the given id
-function pid.remove(id)
-  local oldController = registry[id]
-  if oldController then
-    oldController:stop()
+--registers a controller
+--TODO: description
+function pid.register(self, stopPrevious, id)
+  if id == nil and self ~= nil then
+    id = self.id
   end
-  registry[id] = nil
-  return oldController
+  assert(id ~= nil, "Unable to register: id is nil")
+  --add controller to registry
+  local previous = registry[id]
+  registry[id]   = self
+  --stop previous controller if wanted
+  local previousIsRunning = previous and previous:isRunning() or false
+  if previous and stopPrevious and previousIsRunning then
+    previous:stop()
+  end
+  return previous, previousIsRunning
+end
+--
+function pid.remove(id, stop)
+  return pid.register(nil, stop, id)
 end
 
 return pid
