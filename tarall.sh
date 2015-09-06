@@ -9,11 +9,12 @@
 
 #reminder: just execute "sh < tarall.sh" when using windows file system...
 ##complete package
-tar --numeric-owner -cf tars/all.tar boot home pids usr
+tar --numeric-owner -cf tars/all.tar boot home pids usr lib
 tar --numeric-owner -cf tars/pids.tar pids
 tar --numeric-owner -cf tars/boot.tar boot
 tar --numeric-owner -cf tars/home.tar home
 tar --numeric-owner -cf tars/usr.tar usr
+tar --numeric-owner -cf tars/lib.tar lib
 ##smaller packages
 #tar.tar
 tar --numeric-owner -cf tars/tar.tar home/bin/tar.lua home/lib/mpm/auto_progress.lua usr/man/tar.man
