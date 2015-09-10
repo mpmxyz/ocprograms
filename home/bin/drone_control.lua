@@ -34,9 +34,8 @@ local function encrypt(msg, key)
   return table.concat(chars)
 end
 local function decrypt(msg, key)
-  --appending checksum and encrypting
+  --decrypting and checking checksum
   key = key or ""
-  
   local chars = {}
   local sum = 0
   for i = 1, #msg do
@@ -87,7 +86,7 @@ while true do
   if msg then
     msg = decode(drone_id, drone_key, msg)
     if msg then
-      drone_port = tonumber(msg:match("^port(.-)$"))
+      drone_port = tonumber(msg:match("^port%((.-)%)$"))
       if drone_port then
         drone_address = senderAddress
         break
@@ -100,7 +99,7 @@ modem.open(drone_port)
 --resizing screen to allow seeing drone
 local gpu = component.gpu
 local oldResolutionX, oldResolutionY = gpu.getResolution()
-gpu.setResolution(16, 3)
+gpu.setResolution(23, 5)
 print("Connected.")
 
 --run main loop
@@ -119,20 +118,29 @@ local actions = {
   [keyboard.keys.r] = newAction("move( 0, 1, 0)"),
   [keyboard.keys.f] = newAction("move( 0,-1, 0)"),
   --place / break
-  [keyboard.keys.q] = newAction("swing("..sides.down..")"),
-  [keyboard.keys.e] = newAction("place("..sides.down..")"),
-  [keyboard.keys.t] = newAction("leash("..sides.down..")"),
-  [keyboard.keys.g] = newAction("unleash()"),
+  [keyboard.keys.q] = newAction("return swing("..sides.down..")"),
+  [keyboard.keys.e] = newAction("return place("..sides.down..")"),
+  --leash
+  [keyboard.keys.t] = newAction("return leash("..sides.down..")"),
+  [keyboard.keys.g] = newAction("return unleash()"),
+  --inventory
+  [keyboard.keys.tab] = newAction("return count()"),
+  [keyboard.keys.space] = newAction("return space()"),
 }
 --selecting slots
 for i = 1, 8 do
-  actions[keyboard.keys[tostring(i)]] = newAction("select("..tostring(i)..")")
+  actions[keyboard.keys[tostring(i)]] = newAction("return select("..tostring(i)..")")
 end
+
+local actionEnv = {
+  status = print,
+}
 
 
 local cooldown = computer.uptime()
 while true do
-  local event, source, char, key = event.pull()
+  local event, source, char, key, dist, msg = event.pull()
+  --event, receiverAddress, senderAddress, port, dist, msg
   if event == "interrupted" then
     break
   elseif event == "key_down" then
@@ -147,6 +155,16 @@ while true do
     end
   elseif event == "key_up" then
     cooldown = computer.uptime()
+  elseif event == "modem_message" then
+    local receiverAddress, senderAddress, port = source, char, key
+    --on message: decrypt and verify, execute
+    if port == drone_port then
+      msg = decode(drone_id, drone_key, msg)
+      if msg then
+        local func, err = load(msg, nil, nil, setmetatable({},{__index=actionEnv}))
+        xpcall(func, debug.traceback)
+      end
+    end
   end
 end
 

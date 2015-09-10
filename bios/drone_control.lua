@@ -6,11 +6,10 @@
 --forum page : none
 -----------------------------------------------------
 
---TODO: goto
---TODO: feedback
 assert(xpcall(function()
 local INIT_PORT = 1
 local MAX_STEP_SIZE = 8
+local MAX_BUFFER_SIZE = 8
 
 --define helper functions
 local function encrypt(msg, key)
@@ -28,9 +27,8 @@ local function encrypt(msg, key)
   return table.concat(chars)
 end
 local function decrypt(msg, key)
-  --appending checksum and encrypting
+  --decrypting and checking checksum
   key = key or ""
-  
   local chars = {}
   local sum = 0
   for i = 1, #msg do
@@ -56,10 +54,6 @@ local function decode(drone_id, key, msg)
   end
 end
 
-local function onMessage(reactionTable, sender, port, msg)
-  
-end
-
 --get components
 local function getComponent(name)
   local address = component.list(name)()
@@ -83,6 +77,15 @@ modem.open(drone_port)
 
 local dx, dy, dz = 0, 0, 0
 
+local function limit(v, r)
+  if v > r then
+    v = r
+  elseif v < -r then
+    v = -r
+  end
+  return v
+end
+
 local actionEnvs = {
   [INIT_PORT] = {
     id = function(address, port)
@@ -96,8 +99,26 @@ local actionEnvs = {
       dz = dz + z
     end,
     swing   = drone.swing,
+    swingUp = drone.swingUp,
+    swingDown   = drone.swingDown,
     place   = drone.place,
+    placeUp = drone.placeUp,
+    placeDown = drone.placeDown,
     select  = drone.select,
+    count = function()
+      local inv = {}
+      for i = 1, 8 do
+        inv[i] = tostring(drone.count(i))
+      end
+      return table.concat(inv, " ")
+    end,
+    space = function()
+      local inv = {}
+      for i = 1, 8 do
+        inv[i] = tostring(drone.space(i))
+      end
+      return table.concat(inv, " ")
+    end,
     leash   = leash and leash.leash,
     unleash = leash and leash.unleash,
   },
@@ -108,9 +129,9 @@ while true do
   local timeToUpdate = nextUpdate - computer.uptime()
 
   if timeToUpdate <= 0 then
-    dx = math.max(math.min(dx, MAX_STEP_SIZE), -MAX_STEP_SIZE)
-    dy = math.max(math.min(dy, MAX_STEP_SIZE), -MAX_STEP_SIZE)
-    dz = math.max(math.min(dz, MAX_STEP_SIZE), -MAX_STEP_SIZE)
+    dx = limit(dx, MAX_STEP_SIZE)
+    dy = limit(dy, MAX_STEP_SIZE)
+    dz = limit(dz, MAX_STEP_SIZE)
     drone.move(dx, dy, dz)
     print(dx .. "," .. dy ..","..dz)
     dx, dy, dz = 0, 0, 0
@@ -119,21 +140,21 @@ while true do
   end
   local event, receiverAddress, senderAddress, port, dist, msg = computer.pullSignal(timeToUpdate)
   if event == "modem_message" and type(msg) == "string" then
+    --on message: decrypt and verify, execute
     local actionEnv = actionEnvs[port]
     if actionEnv then
       msg = decode(drone_id, drone_key, msg)
       if msg then
-        local func, err = load(msg, nil, nil, semetatable({},{__index=actionEnv})
+        local func, err = load(msg, nil, nil, setmetatable({},{__index=actionEnv}))
         if func then
           func, err = xpcall(func, debug.traceback)
         end
-        if not func then
-          modem.send(senderAddress, drone_port, encode(drone_id, drone_key, ("status%q"):format(tostring(err))))
+        if err ~= nil then
+          err = tostring(err)
+          modem.send(senderAddress, drone_port, encode(drone_id, drone_key, ("status%q"):format(err)))
         end
       end
     end
   end
 end
---on message: decrypt and verify, execute
---
 end, debug.traceback))

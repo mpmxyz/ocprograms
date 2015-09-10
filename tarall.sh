@@ -9,8 +9,9 @@
 
 #reminder: just execute "sh < tarall.sh" when using windows file system...
 ##complete package
-tar --numeric-owner -cf tars/all.tar boot home pids usr lib
+tar --numeric-owner -cf tars/all.tar bios boot home pids usr lib
 tar --numeric-owner -cf tars/pids.tar pids
+tar --numeric-owner -cf tars/bios.tar bios
 tar --numeric-owner -cf tars/boot.tar boot
 tar --numeric-owner -cf tars/home.tar home
 tar --numeric-owner -cf tars/usr.tar usr
