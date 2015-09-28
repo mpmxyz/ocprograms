@@ -6,10 +6,13 @@
 --forum page : TODO
 -----------------------------------------------------
 
-local qui = require("mpm.qui")
-local quidgets = require("mpm.quidgets")
 local component = require("component")
 local event = require("event")
+local keyboard = require("keyboard")
+local qui = require("mpm.qui")
+local quidgets = require("mpm.quidgets")
+local qselect = require("mpm.qselect")
+
 
 local ui = [[
 *label*    *b* #
@@ -22,9 +25,6 @@ local ui = [[
                #]]     
 
 local uiObject = qui.load(ui, {
-  h = "%*+(%a*)%**",
-  v = "%#+(%a*)%#*",
-}, {
   label = {
     text = "Test123",
     fgColor = 0xFFAA55,
@@ -53,16 +53,36 @@ local uiObject = qui.load(ui, {
     gpu = component.gpu,
     vertical = false,
     view = 1,
+    text = "",
   },
   input = quidgets.textbox{
     text = "Test!",
   }
 })
+selection = qselect.new(uiObject)
+
 while true do
   uiObject:update()
   uiObject:draw(component.gpu)
-  local ev, src, x, y = event.pull("touch")
-  if ev == "touch" then
+  local ev, src, x, y = event.pull()
+  if ev == "touch" and src == component.screen.address then
     uiObject:click(x, y)
+  elseif ev == "scroll" and src == component.screen.address then
+    uiObject:scroll(x, y, direction)
+  elseif ev == "key_down" and src == component.keyboard.address then
+    local key = y
+    if key == keyboard.keys.enter then
+      selection:click()
+    elseif key == keyboard.keys.left then
+      selection:selectPrevious()
+    elseif key == keyboard.keys.right then
+      selection:selectNext()
+    elseif key == keyboard.keys.home then
+      selection:selectFirst()
+    elseif key == keyboard.keys.ende then
+      selection:selectLast()
+    end
+  elseif ev == "interrupted" then
+    break
   end
 end

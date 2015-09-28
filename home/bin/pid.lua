@@ -19,46 +19,21 @@ end
 
 local function printUsage()
   print([[
-Usage: pid <action> [options] file or id [var=value or =var ...] [--args ...]
+Usage: pid <action> [options] file or id
+           [var=value or =var ...] [--args ...]
+       pid debug [ids ...]
  action     what it does
-   run        loads the given file as a controller and starts it
-   load       loads the given file as a controller but doesn't start it
-   update     updates the controller with the given id
-   unload     stops and unregisters the controller with the given id
-   start      (re-)starts the controllers with the given ids
-   stop       stops the controllers with the given ids
-   debug      displays debug info of the controllers with the given ids]])
+   run        loads and starts a PID
+   load       loads a PID but doesn't start it
+   update     updates only (to update PID vars)
+   unload     stops and unregisters a PID
+   start      (re-)starts a PID
+   stop       stops a PID
+   debug      displays debug info of PIDs]])
 end
 
 
 
---loads a controller from a given source file
---The file is loaded with a custom environment which combines the normal environment with a controller table.
---Writing access is always redirected to the controller table.
---Reading access is first redirected to the controller and, if the value is nil, it's redirected to the normal environment.
-local function loadFile(file, start, subArgs)
-  local data={}
-  --custom environment
-  --reading: 1. controller, 2. _ENV
-  --writing: controller only
-  local env=setmetatable({},{
-    __index=function(_,k)
-      local value=data[k]
-      if value~=nil then
-        return value
-      end
-      return _ENV[k]
-    end,
-    __newindex=data,
-  })
-  --load and execute the file
-  assert(loadfile(file,"t",env))(table.unpack(subArgs, 1, subArgs.n)) --TODO: add parameters
-  data.id = data.id or stripDir(file)
-  data._ENV = data
-  --initializes the controller but doesn't start it if loadOnly is true
-  --the previous controller with the same id is stopped
-  return pid.new(data, nil, start, true), data.id
-end
 
 --a quick and dirty PID debugger
 local function runMonitor(controllers, loadedIDs)
@@ -113,11 +88,11 @@ local function runMonitor(controllers, loadedIDs)
 end
 
 local controllerGetters = {
-  run     = function(file, subArgs
-    return loadFile(shell.resolve(file), true,  subArgs)
+  run     = function(file, subArgs)
+    return pid.loadFile(shell.resolve(file), true,  table.unpack(subArgs, 1, subArgs.n))
   end,
   load    = function(file, subArgs)
-    return loadFile(shell.resolve(file), false, subArgs)
+    return pid.loadFile(shell.resolve(file), false, table.unpack(subArgs, 1, subArgs.n))
   end,
   default = function(id)
     local controller = pid.get(id)
@@ -275,14 +250,14 @@ local function main(parameters, options, subArgs)
   end
 end
 
---parseing parameters and executing main function
+--parsing parameters and executing main function
 local args = table.pack(...)
 local usedArgs, subArgs = {n = 0}, {n = 0}
 do
   local target = usedArgs
-  for i = 1, args.n
+  for i = 1, args.n do
     local arg = args[i]
-    if (arg == "--args" or arg == "-a") and  then
+    if (arg == "--args" or arg == "-a") then
       target = subArgs
     else
       target.n = target.n + 1

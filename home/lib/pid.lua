@@ -8,6 +8,7 @@
 
 --loading libraries
 local event = require("event")
+local libarmor = require("mpm.libarmor")
 local values = require("mpm.values")
 
 --the library table
@@ -16,6 +17,16 @@ local pid = {}
 local running = {}
 --id -> obj
 local registry = {}
+local reverseRegistry = {} --TODO: implement reverse registry
+local protectedRegistry = libarmor.protect(registry)
+
+--removes the directory part from the given file path
+local function stripDir(file)
+  return string.gsub(file,"^.*%/","")
+end
+
+
+
 
 --**TYPES AND VALIDATION**--
 
@@ -45,6 +56,7 @@ local registry = {}
       get=value or nil,         --For better jump starting capabilities it is recommended to also add a getter function.
       min=value or nil,         --Minimum and maximum values can also be set to define the range of control inputs to the actuator.
       max=value or nil,         --The limit can also be one sided. (e.g. from 0 to infinity)
+      initial=value or nil,     --can be used as an alternative to the "get" field
     },
     factors={                   --These are the factors that define the behaviour of the PID controller. It has even got its name from them.
      p=value,                   --P: proportional, factor applied to the error (current value - target value)        is added directly          acts like a spring, increases tendency to return to target, but might leave some residual error
@@ -114,7 +126,16 @@ function pid.new(data, id, enable, stopPrevious)
       --calculate error'(t)
       local derror = (currentError - lastError) / dt
       --calculate output value
-      output = (p + i * dt) * currentError + d * derror + offset
+      local valueP = p * currentError
+      local valueI = offset + i * dt * currentError
+      local valueD = d * derror
+      output = valueP + valueI + valueD
+      --save raw values
+      info.rawP = valueP
+      info.rawI = valueI
+      info.rawD = valueD
+      info.rawSum = output
+      
       --now clamp it within range and decide if it is safe to do the integration
       local doIntegration = true
       local doffset = i * currentError * dt
@@ -235,6 +256,36 @@ function pid.new(data, id, enable, stopPrevious)
   end
   return controller
 end
+
+--loads a controller from a given source file
+--The file is loaded with a custom environment which combines the normal environment with a controller table.
+--Writing access is always redirected to the controller table.
+--Reading access is first redirected to the controller and, if the value is nil, it's redirected to the normal environment.
+function pid.loadFile(file, enable, ...)
+  local data={}
+  --custom environment
+  --reading: 1. controller, 2. _ENV
+  --writing: controller only
+  local env=setmetatable({},{
+    __index=function(_,k)
+      local value=data[k]
+      if value~=nil then
+        return value
+      end
+      return _ENV[k]
+    end,
+    __newindex=data,
+  })
+  --load and execute the file
+  assert(loadfile(file,"t",env))(...)
+  data.id = data.id or stripDir(file)
+  data._ENV = data
+  --initializes the controller but doesn't start it if loadOnly is true
+  --the previous controller with the same id is stopped
+  return pid.new(data, nil, enable, true), data.id
+end
+
+
 ---controller registry
 --gets the PID controller for the given id
 function pid.get(id)
@@ -260,6 +311,11 @@ end
 --
 function pid.remove(id, stop)
   return pid.register(nil, stop, id)
+end
+--TODO: description
+--returns a read only table
+function pid.registry()
+  return protectedRegistry
 end
 
 return pid

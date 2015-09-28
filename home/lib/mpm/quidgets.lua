@@ -21,6 +21,16 @@ function quidgets.slider(obj)
   --TODO: add click and scroll listeners
   --TODO: update slider graphics (requires gpu)
   --TODO: call slider event function
+  function obj:setRange(min, max, size)
+    --1, 3, 1 -> slider with the values 1, 2, 3 and a single character knob
+    --1, 10, 5 -> scroll bar with the values 1, ..., 6 and a 50% size knob
+  end
+  function obj:onClick(x, y)
+    
+  end
+  function obj:onScroll(x, y, direction)
+    
+  end
   return obj
 end
 
@@ -28,34 +38,39 @@ function quidgets.textbox(obj)
   obj = obj or {}
   
   function obj:onClick()
+    --TODO: term options
+    --TODO: react on click
     self:edit()
   end
   
   function obj:edit(...)
     local text = values.get(self.text)
+    local gpu = self.lastGPU
+    assert(gpu, "Textbox has to be drawn before editing!")
     --prepare writing area
-    local w, h = component.gpu.getResolution()
-    component.gpu.fill(self.x, self.y, w, 1, " ")
+    local w, h = gpu.getResolution()
+    component.gpu.fill(self.x_draw, self.y_draw, w, 1, " ")
     --prepare cursor
-    term.setCursor(self.x, self.y)
-    --add current text to term.read
+    term.setCursor(self.x_draw, self.y_draw)
+    --add current text to term.read, TODO: make the content adjustable
     computer.pushSignal("clipboard", component.keyboard.address, text:match("^[^\r\n]*"))
     --read input
     local input = term.read(...)
-    --redraw user interface
-    local top = self
-    while top.parent do
-      top = top.parent 
-    end
-    top:redraw(self.x, self.y)
     --trigger events
     if input then
+      input = input:match("^[^\r\n]*")
       if self.onEdit then
         self:onEdit(input)
       else
         self.text = input
       end
     end
+    --redraw user interface
+    local top = self
+    while top.parent do
+      top = top.parent 
+    end
+    top:redraw(self.x_draw, self.y_draw)
     return input
   end
   return obj
