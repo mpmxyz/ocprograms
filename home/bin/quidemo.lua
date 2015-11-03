@@ -46,7 +46,7 @@ local uiObject = qui.load(ui, {
         self.fgColor = 0xFF3333
         self.bgColor = 0x330000
       end
-      self:redraw(self.x, self.y)
+      self:redraw(self.x_draw, self.y_draw, self.x_draw + self.width - 1, self.y_draw)
     end,
   },
   slider = quidgets.slider{

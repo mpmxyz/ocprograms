@@ -13,8 +13,27 @@ local term      = require("term")
 local unicode   = require("unicode")
 local values    = require("mpm.values")
 local qui       = require("mpm.qui")
+local textgfx   = require("mpm.textgfx")
 
 local quidgets = {}
+
+function quidgets.bar(obj)
+  obj = obj or {}
+  function obj:set(from, to, minimum, maximum)
+    --get dimensions
+    local size = self.vertical and self.height or self.width
+    local thickness = self.vertical and self.width or self.height
+    --get characters
+    local char = self.char
+    local reversedChar = self.reversedChar
+    local bgLeft = self.bgLeft
+    local bgRight = self.bgRight
+    --update text
+    self.text = textgfx.bar(size, from, to, minimum, maximum, char, reversedChar, bgLeft, bgRight, thickness)
+  end
+  return obj 
+end
+
 
 function quidgets.slider(obj)
   obj = obj or {}
@@ -70,7 +89,7 @@ function quidgets.textbox(obj)
     while top.parent do
       top = top.parent 
     end
-    top:redraw(self.x_draw, self.y_draw)
+    top:redraw(self.x_draw, self.y_draw, nil, self.y_draw)
     return input
   end
   return obj

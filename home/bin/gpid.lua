@@ -51,7 +51,7 @@ local function onError(msg)
   component.gpu.setForeground(oldForeground)
   component.gpu.setBackground(oldBackground)
   os.sleep(3)
-  uiObject:redraw(1, 1)
+  uiObject:redraw(1, 1, nil, 1)
 end
 
 local CURRENT_PID
@@ -73,7 +73,7 @@ local function getSortedIDs()
   --create list of string ids
   local ids = {n = 0}
   for k, v in pairs(registry) do
-    --TODO: allow all other types by addubg a custom sorting method
+    --TODO: allow all other types by adding a custom sorting method
     if type(k) == "string" then
       ids.n = ids.n + 1
       ids[ids.n] = k
@@ -150,7 +150,7 @@ local function changeID(newID)
   CURRENT_ID = newID
 end
 
-
+nextPID()
 
 local function numberLabel(keys)
   local obj = {}
@@ -163,12 +163,16 @@ local function numberLabel(keys)
   end
   return obj
 end
-local function numberBox(keys)
+local function numberBox(keys, setter)
   local obj = numberLabel(keys)
   function obj:onEdit(text)
     local value = tonumber(text)
     if value and CURRENT_PID then
-      values.set(CURRENT_PID, value, false, table.unpack(keys))
+      if setter then
+        setter(value)
+      else
+        values.set(CURRENT_PID, value, false, table.unpack(keys))
+      end
     end
   end
   return quidgets.textbox(obj)
@@ -294,7 +298,7 @@ uiObject = qui.load(ui, {
         term.setCursor(1, 1)
         term.write(what)
         local value = term.read(...)
-        uiObject:redraw(1, 1)
+        uiObject:redraw(1, 1, nil, 1)
         return value and value:match("^[^\r\n]*")
       end
       --get file path, TODO: autocomplete
@@ -375,7 +379,14 @@ uiObject = qui.load(ui, {
   min = numberBox{"actuator", "min"},
   max = numberBox{"actuator", "max"},
   default = numberBox{"actuator", "initial"},
-  valOffset = numberLabel{"info", "offset"},
+  valOffset = numberBox(
+    {"info", "offset"},
+    function(value)
+      if CURRENT_PID and CURRENT_PID.forceOffset then
+        CURRENT_PID:forceOffset(value)
+      end
+    end
+  ),
   valP      = numberLabel{"info", "rawP"},
   valD      = numberLabel{"info", "rawD"},
   valSum    = numberLabel{"info", "rawSum"},
@@ -394,6 +405,7 @@ uiObject:update()
 
 --keyboard only interface--
 selection = qselect.new(uiObject)
+selection:initVertical(true)
 
 --get gpu and current graphics settings for later use
 local gpu, screen = component.gpu, component.screen
@@ -425,9 +437,9 @@ while true do
     elseif key == keyboard.keys.right then
       selection:selectNext()
     elseif key == keyboard.keys.up then
-      --TODO
+      selection:selectUp()
     elseif key == keyboard.keys.down then
-      --TODO
+      selection:selectDown()
     elseif key == keyboard.keys.home then
       selection:selectFirst()
     elseif key == keyboard.keys.ende then

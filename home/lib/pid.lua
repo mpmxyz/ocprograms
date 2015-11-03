@@ -17,7 +17,7 @@ local pid = {}
 local running = {}
 --id -> obj
 local registry = {}
-local reverseRegistry = {} --TODO: implement reverse registry
+local reverseRegistry = {} --TODO: implement reverse registry (obj -> id)
 local protectedRegistry = libarmor.protect(registry)
 
 --removes the directory part from the given file path
@@ -31,7 +31,7 @@ end
 --**TYPES AND VALIDATION**--
 
 --[[
-  pid.new(data, id, enable) -> controller
+  pid.new(data:table, id, enable:boolean) -> pid:table
   Creates a pid controller using the given data table and returns a controller table.
   The controller table is connected to the data table via a __index metamethod.
   That allows for updates via a shared data object and local overrides by writing to individual controllers.
@@ -188,6 +188,12 @@ function pid.new(data, id, enable, stopPrevious)
     self.info = info
   end
   
+  ---forcing controller states
+  function controller:forceOffset(newOffset)
+    checkArg(1, newOffset, "number")
+    offset = newOffset
+  end
+  
   ---managing controller execution (start/stop etc.)
   local function callback()
     --remove controller from running list
@@ -257,6 +263,7 @@ function pid.new(data, id, enable, stopPrevious)
   return controller
 end
 
+--pid.loadFile(file, enable, ...) -> pid:table, id
 --loads a controller from a given source file
 --The file is loaded with a custom environment which combines the normal environment with a controller table.
 --Writing access is always redirected to the controller table.
@@ -287,10 +294,12 @@ end
 
 
 ---controller registry
+--pid.get(id) -> pid:table
 --gets the PID controller for the given id
 function pid.get(id)
   return registry[id]
 end
+--pid.register(pid:table, [stopPrevious:boolean, id]) -> old pid:table, wasRunning:boolean
 --registers a controller
 --TODO: description
 function pid.register(self, stopPrevious, id)
@@ -308,10 +317,14 @@ function pid.register(self, stopPrevious, id)
   end
   return previous, previousIsRunning
 end
---
+
+--pid.remove(id, [stop:boolean]) -> old pid:table, wasRunning:boolean
+--TODO: description
 function pid.remove(id, stop)
   return pid.register(nil, stop, id)
 end
+
+--pid.registry() -> proxy:table
 --TODO: description
 --returns a read only table
 function pid.registry()

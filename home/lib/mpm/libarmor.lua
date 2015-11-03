@@ -8,7 +8,12 @@
 
 local libarmor = {}
 
+--libarmor.protect(original:table, [whitelist:table]) -> proxy:table
+--creates a read only proxy for a given table (includes wrappers for pairs, ipairs and #)
+--You can specify a whitelist table to allow writing to a subset of keys. (format: {[key] = true, ...})
 function libarmor.protect(original, whitelist)
+  checkArg(1, original , "table")
+  checkArg(2, whitelist, "table", "nil")
   --create a protected proxy table
   local proxy = {}
   --redirecting next is the easiest way to create an iterator

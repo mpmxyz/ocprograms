@@ -9,6 +9,7 @@
 
 local unicode = require("unicode")
 local values  = require("mpm.values")
+local textgfx = require("mpm.textgfx")
 --local regex = require("TODO.regex") TODO: improve regex with captures
 
 local linePattern = "([^\r\n]*)(\r?\n?)"
@@ -173,7 +174,7 @@ function methods:isValid()
 end
 
 --default drawing function
-function methods:onDraw(gpu, minX, drawnY)
+function methods:onDraw(gpu, viewXmin, viewYmin, viewXmax, viewYmax)
   --get text
   if self.text == nil then
     return
@@ -182,11 +183,8 @@ function methods:onDraw(gpu, minX, drawnY)
   if text == nil then
     return
   end
-  --get drawing position
-  local x, y = self.x_draw, self.y_draw
-  local width, height = self.width_draw, self.height_draw
-  local hiddenPrefixLength = math.max((minX or x) - x, 0)
-  if hiddenPrefixLength > width then
+  --check visibility
+  if not textgfx.checkView(self.x_draw, self.y_draw, self.width, self.height, viewXmin, viewYmin, viewXmax, viewYmax) then
     return
   end
   
@@ -203,40 +201,10 @@ function methods:onDraw(gpu, minX, drawnY)
   if background then
     oldBackground = gpu.setBackground(background)
   end
+  
   --draw line by line
-  for line, lineBreak in text:gmatch(linePattern) do
-    if line ~= "" or lineBreak ~= "" then
-      --the optional parameters tell the drawing routine to only draw within the specified half line
-      if (not drawnY or y == drawnY) then
-        --adjusting line length
-        local lineWidth = unicode.wlen(line)
-        if lineWidth < width then
-          line = line .. (" "):rep(width - lineWidth)
-        elseif lineWidth > width then
-          line = unicode.wtrunc(line, width + 1)
-        end
-        --drawing operation
-        gpu.set(x + hiddenPrefixLength, y, unicode.sub(line, 1 + hiddenPrefixLength, -1))
-      end
-      --go to next line
-      y = y + 1
-      height = height - 1
-      --check if we reached the end
-      if height <= 0 then
-        break
-      end
-    end
-  end
-  --draw missing lines
-  if height > 0 then
-    local line = (" "):rep(width)
-    while height > 0 do
-      gpu.set(x, y, line)
-      --go to next line
-      y = y + 1
-      height = height - 1
-    end
-  end
+  textgfx.draw(gpu, text, self.x_draw, self.y_draw, self.width, self.height, viewXmin, viewYmin, viewXmax, viewYmax, self.vertical)
+  
   --return to old color
   if oldForeground then
     gpu.setForeground(oldForeground)
@@ -368,6 +336,11 @@ local function newEventProcessor(childAction, eventAction)
       return true
     end
   end
+end
+
+  
+function methods:isInteractive()
+  return (self.onClick ~= nil or self.onScroll ~= nil)
 end
 
 --checks for an action at the given position and executes it
