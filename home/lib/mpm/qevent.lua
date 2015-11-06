@@ -6,6 +6,9 @@
 --forum page : http://oc.cil.li/index.php?/topic/
 -----------------------------------------------------
 
+local component = require("component")
+local keyboard  = require("keyboard")
+
 local qevent = {}
 
 --qevent.new(root:table, selection:table, gpu:table) -> event processor:table

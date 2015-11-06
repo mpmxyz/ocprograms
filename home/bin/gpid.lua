@@ -27,7 +27,6 @@
 
 local component = require("component")
 local event     = require("event")
-local keyboard  = require("keyboard")
 local shell     = require("shell")
 local term      = require("term")
 
