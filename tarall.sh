@@ -21,8 +21,10 @@ tar --numeric-owner -cf tars/lib.tar lib
 tar --numeric-owner -cf tars/tar.tar home/bin/tar.lua home/lib/mpm/auto_progress.lua usr/man/tar.man
 #crunch.tar
 tar --numeric-owner -cf tars/crunch.tar home/bin/crunch.lua home/lib/mpm/cache.lua home/lib/mpm/lib.lua home/lib/mpm/hashset.lua home/lib/mpm/sets.lua home/lib/mpm/setset.lua home/lib/crunch home/lib/parser usr/man/crunch.man
+#qui.tar
+tar --numeric-owner -cf tars/qui.tar home/bin/quidemo.lua home/lib/mpm/values.lua home/lib/mpm/qui.lua home/lib/mpm/quidgets.lua home/lib/mpm/qselect.lua home/lib/mpm/qevent.lua home/lib/mpm/stack.lua home/lib/mpm/textgfx.lua
 #pid.tar
-tar --numeric-owner -cf tars/pid.tar home/bin/pid.lua home/bin/gpid.lua home/lib/pid.lua home/lib/mpm/values.lua home/lib/mpm/libarmor.lua home/lib/mpm/qui.lua home/lib/mpm/quidgets.lua home/lib/mpm/qselect.lua home/lib/mpm/qevent.lua home/lib/mpm/stack.lua usr/man/pid.man
+tar --numeric-owner -cf tars/pid.tar home/bin/pid.lua home/bin/gpid.lua home/lib/pid.lua home/lib/mpm/values.lua home/lib/mpm/libarmor.lua home/lib/mpm/qui.lua home/lib/mpm/quidgets.lua home/lib/mpm/qselect.lua home/lib/mpm/qevent.lua home/lib/mpm/stack.lua home/lib/mpm/textgfx.lua usr/man/pid.man
 #cbrowse.tar
 tar --numeric-owner -cf tars/cbrowse.tar home/bin/cbrowse.lua home/lib/mpm/tables.lua home/lib/mpm/draw_buffer.lua home/lib/mpm/component_filter.lua home/lib/mpm/config.lua home/lib/mpm/cache.lua home/lib/mpm/lib.lua home/lib/mpm/values.lua usr/man/cbrowse.man
 #devfs.tar
