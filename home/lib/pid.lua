@@ -28,13 +28,11 @@ end
 
 
 --[[
-  pid.new(data:table, id, enable:boolean) -> pid:table
-  Creates a pid controller using the given data table and returns a controller table.
-  The controller table is connected to the data table via a __index metamethod.
-  That allows for updates via a shared data object and local overrides by writing to individual controllers.
+  pid.new(controller:table, [id, enable:boolean, stopPrevious:boolean]) -> controller:table, previous:table, previousIsRunning:boolean
+  Creates a pid controller by adding methods to the given controller table.
   For convenience it is also automaticly started unless enable is false. (default is true)
   Controllers can be registered globally using the id parameter. (or field; but the parameter takes priority)
-  There can only be one controller with the same id. Existing controllers will be replaced.
+  There can only be one controller with the same id. Existing controllers will be replaced. (and stopped if stopPrevious is true)
   
   Here is a list of controller methods:
   name                            description
@@ -45,7 +43,7 @@ end
   
   This is the format the data table is expected to use.
   "value" types can either be a number or a getter function returning one.
-  data={
+  controller={
     sensor=value,               --a function returning the value being controlled
     target=value,               --the value that the controlled value should reach
     actuator={                  --The actuator is the thing that is 'working' on your system.
@@ -81,8 +79,7 @@ end
     output=p*error+d*derror+offset,  --current output, sum of P, I and D terms
   }
 ]]
-function pid.new(data, id, enable, stopPrevious)
-  local controller = setmetatable({}, {__index = data})
+function pid.new(controller, id, enable, stopPrevious)
   local lastError
   local offset
   local dt
@@ -257,7 +254,7 @@ function pid.new(data, id, enable, stopPrevious)
   if enable then
     controller:start()
   end
-  return controller
+  return controller, previous, previousIsRunning
 end
 
 --pid.loadFile(file, enable, ...) -> pid:table, id
@@ -286,9 +283,7 @@ function pid.loadFile(file, enable, ...)
   --load and execute the file
   assert(loadfile(file,"t",env))(...)
   data.id = data.id or stripDir(file)
-  data._ENV = data
-  --initializes the controller but doesn't start it if loadOnly is true
-  --the previous controller with the same id is stopped
+  --initialize controller
   return pid.new(data, nil, enable, true), data.id
 end
 
@@ -354,12 +349,12 @@ end
 --pid.remove(pid:table, [stop:boolean]) -> wasRunning:boolean
 --removes the given controller from the registry
 --You can also order the controller to stop using the parameter "stop".
-function pid.remove(pid, stop)
-  checkArg(1, pid, "table")
+function pid.remove(self, stop)
+  checkArg(1, self, "table")
   checkArg(2, stop, "boolean", "nil")
-  local id = pid.getID(pid)
+  local id = pid.getID(self)
   local crossCheck, wasRunning = pid.register(nil, stop, id)
-  assert(crossCheck == pid, "Cross check failed!")
+  assert(crossCheck == self, "Cross check failed!")
   return wasRunning
 end
 
