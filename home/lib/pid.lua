@@ -325,8 +325,7 @@ function pid.remove(id, stop)
 end
 
 --pid.registry() -> proxy:table
---TODO: description
---returns a read only table
+--returns a read only proxy of the registry
 function pid.registry()
   return protectedRegistry
 end

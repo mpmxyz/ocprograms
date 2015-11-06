@@ -31,6 +31,9 @@ function quidgets.bar(obj)
     --update text
     self.text = textgfx.bar(size, from, to, minimum, maximum, char, reversedChar, bgLeft, bgRight, thickness)
   end
+  if obj.from and obj.to and obj.minimum and obj.maximum then
+    obj:set(from, to, minimum, maximum)
+  end
   return obj 
 end
 
@@ -38,11 +41,24 @@ end
 function quidgets.slider(obj)
   obj = obj or {}
   --TODO: add click and scroll listeners
-  --TODO: update slider graphics (requires gpu)
+  --TODO: initial values
+  --TODO: check args
   --TODO: call slider event function
   function obj:setRange(min, max, size)
     --1, 3, 1 -> slider with the values 1, 2, 3 and a single character knob
     --1, 10, 5 -> scroll bar with the values 1, ..., 6 and a 50% size knob
+    self.size = size
+    self.min = min
+    self.max = max
+    self:updateBar()
+  end
+  function obj:setValue(value)
+    self.value = value
+    self:updateBar()
+  end
+  function obj:updateBar()
+    self:set(self.value, self.value + self.size - 1, self.min, self.max)
+    self:redraw()
   end
   function obj:onClick(x, y)
     

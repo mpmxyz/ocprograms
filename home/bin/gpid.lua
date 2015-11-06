@@ -36,6 +36,8 @@ local values = require("mpm.values")
 local qui = require("mpm.qui")
 local quidgets = require("mpm.quidgets")
 local qselect = require("mpm.qselect")
+local qevent = require("mpm.qevent")
+
 local pid = require("pid")
 
 
@@ -404,7 +406,7 @@ uiObject = qui.load(ui, {
 uiObject:update()
 
 --keyboard only interface--
-selection = qselect.new(uiObject)
+local selection = qselect.new(uiObject)
 selection:initVertical(true)
 
 --get gpu and current graphics settings for later use
@@ -417,38 +419,16 @@ gpu.setResolution(uiObject.width, uiObject.height)
 gpu.setDepth(gpu.maxDepth())
 uiObject:draw(gpu)
 
+--create event processor
+local eventProcessor = qevent.new(uiObject, selection, gpu)
+
 --main loop--
 while true do
-  local event, source, x, y, direction = event.pull(1.0)
+  local event, source, x, y, direction = eventProcessor:onEvent(event.pull(1.0))
   if event == nil then
     --redraw every second
     updateGraph()
     uiObject:redrawChildren()
-  elseif event == "touch" and source == screen.address then
-    uiObject:click(x, y)
-  elseif event == "scroll" and source == screen.address then
-    uiObject:scroll(x, y, direction)
-  elseif event == "key_down" and source == component.keyboard.address then
-    local key = y
-    if key == keyboard.keys.enter then
-      selection:click(1)
-    elseif key == keyboard.keys.left then
-      selection:selectPrevious()
-    elseif key == keyboard.keys.right then
-      selection:selectNext()
-    elseif key == keyboard.keys.up then
-      selection:selectUp()
-    elseif key == keyboard.keys.down then
-      selection:selectDown()
-    elseif key == keyboard.keys.home then
-      selection:selectFirst()
-    elseif key == keyboard.keys.ende then
-      selection:selectLast()
-    elseif key == keyboard.keys.pageUp then
-      selection:scroll(1)
-    elseif key == keyboard.keys.pageDown then
-      selection:scroll(-1)
-    end
   elseif event == "interrupted" then
     break
   end

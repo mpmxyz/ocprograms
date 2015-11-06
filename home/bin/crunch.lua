@@ -13,7 +13,6 @@
   TODO: optional "local" removal -> make locals globals
   TODO: marking constant expressions -> constant folding
   TODO: dependency tree -> "local" concatenation
-  TEST: function abc() return abc() end
 ]]
 
 --**load libraries**--

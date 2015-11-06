@@ -81,7 +81,7 @@ function qselect.new(root)
   --sorts all ui elements using their upper left corner in a "how you read" order
   --Sub elements are grouped by their parent.
   function obj:sortByPosition(root)
-    checkArg(1, root, "table")
+    checkArg(1, root, "table", "nil")
     root = root or self.root
     table.sort(root, function(a, b)
       return (a.y == b.y and a.x < b.x) or a.y < b.y

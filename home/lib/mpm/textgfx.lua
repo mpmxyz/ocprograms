@@ -13,24 +13,27 @@ local textgfx = {}
 local linePattern = "([^\r\n]*)(\r?\n?)"
 
 --clamp(value:number, size:number, [minimum:number, maximum:number]) -> [clampedValue:number, clampedSize:number, offset:number]
---TODO: description
+--takes an integer range [value:value + size - 1] and cuts off all parts exceeding the given minimum and maximum
+--The return values consist of the new range and an offset value telling how much has been removed from the lower part.
 local function clamp(value, size, minimum, maximum)
   local offset = 0
+  --cutting off the lower part
   if minimum and value < minimum then
     offset = minimum - value
     size = size - offset
     value = minimum
   end
-  if maximum and value > maximum then
-    size = size - value + maximum
+  --cutting off the upper part
+  if maximum and value + size - 1 > maximum then
+    size = maximum - value + 1
   end
   if size > 0 then
     return value, size, offset
   end
 end
 
---textgfx.checkView(x, y, width, height, viewXmin, viewYmin, viewXmax, viewYmax) -> visible:boolean
---TODO: description
+--textgfx.checkView(x, y, width, height, [viewXmin, viewYmin, viewXmax, viewYmax]) -> visible:boolean
+--returns true if the given rectange is not completely clipped by the given boundaries
 function textgfx.checkView(x, y, width, height, viewXmin, viewYmin, viewXmax, viewYmax)
   checkArg(1, x     , "number")
   checkArg(2, y     , "number")
@@ -48,7 +51,10 @@ function textgfx.checkView(x, y, width, height, viewXmin, viewYmin, viewXmax, vi
 end
 
 --textgfx.draw(gpu:table, text:string, x:int, y:int, width:int, height:int, [viewYmin:int, viewYmin:int, viewXmax:int, viewYmax:int, vertical:boolean]) -> visible:boolean
---TODO: description
+--draws the given multiline string to the given target gpu and area
+--The drawing area can be further limitted by the given boundaries.
+--Vertical drawing mode flips x and y in the string. (Each line in the string equals to a column drawn.)
+--Returns true if something has been drawn.
 function textgfx.draw(gpu, text, x, y, width, height, viewXmin, viewYmin, viewXmax, viewYmax, vertical)
   checkArg( 1, gpu     , "table")
   checkArg( 2, text    , "string")
@@ -151,8 +157,15 @@ function textgfx.createCanvas(canvas)
   return canvas
 end
 
+--TODO: add a function to make the bar transform available
+
 --textgfx.bar(size:int, from:number, to:number, minimum:number, maximum:number, [char:string, reversedChar:string, bgLeft:string, bgRight:string, thickness:number]) -> bar:string
---TODO: description
+--creates a string used for progress bars, sliders etc.
+--"size" and "thickness" determine the dimensions of the bar ("size" being the length of a line in the direction of the bar's movement)
+--"reversedChar" is used for the bar when "from" is bigger than "to".
+--"bgLeft" and "bgRight" are the background characters left and right of the bar.
+--If you are using a "thickness" you have to supply an equivalent amount of characters to the string parameters.
+--The first characters are used for the first line, the second ones for the second line and so on.
 function textgfx.bar(size, from, to, minimum, maximum, char, reversedChar, bgLeft, bgRight, thickness)
   checkArg( 1, size   , "number")
   checkArg( 2, from   , "number")
