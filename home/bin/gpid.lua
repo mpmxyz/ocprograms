@@ -26,17 +26,18 @@
 
 
 local component = require("component")
-local event = require("event")
-local keyboard = require("keyboard")
-local shell = require("shell")
-local term = require("term")
+local event     = require("event")
+local keyboard  = require("keyboard")
+local shell     = require("shell")
+local term      = require("term")
 
 local libarmor = require("mpm.libarmor")
-local values = require("mpm.values")
-local qui = require("mpm.qui")
+local values   = require("mpm.values")
+
+local qui      = require("mpm.qui")
 local quidgets = require("mpm.quidgets")
-local qselect = require("mpm.qselect")
-local qevent = require("mpm.qevent")
+local qselect  = require("mpm.qselect")
+local qevent   = require("mpm.qevent")
 
 local pid = require("pid")
 
@@ -57,7 +58,6 @@ local function onError(msg)
 end
 
 local CURRENT_PID
-local CURRENT_ID
 
 local function setPID(id)
   --find pid for the given id
@@ -65,7 +65,6 @@ local function setPID(id)
   if newPID then
     --found one: changing view...
     CURRENT_PID = newPID
-    CURRENT_ID  = id
   end
 end
 
@@ -95,40 +94,35 @@ local function nextPID()
   local ids, inv = getSortedIDs()
   if ids.n > 0 then
     --move to next element in list
-    local index = (CURRENT_ID and inv[CURRENT_ID] or 0) % ids.n + 1
-    CURRENT_ID  = ids[index]
-    CURRENT_PID = pid.get(CURRENT_ID)
+    local index = (inv[pid.getID(CURRENT_PID or {})] or 0) % ids.n + 1
+    CURRENT_PID = pid.get(ids[index])
   else
     --empty list, select nil
     CURRENT_PID = nil
-    CURRENT_ID  = nil
   end
 end
 local function previousPID()
   local ids, inv = getSortedIDs()
   if ids.n > 0 then
     --move to previous element in list
-    local index = ((CURRENT_ID and inv[CURRENT_ID] or 1) - 2) % ids.n + 1
-    CURRENT_ID  = ids[index]
-    CURRENT_PID = pid.get(CURRENT_ID)
+    local index = ((inv[pid.getID(CURRENT_PID or {})] or 1) - 2) % ids.n + 1
+    CURRENT_PID = pid.get(ids[index])
   else
     --empty list, select nil
     CURRENT_PID = nil
-    CURRENT_ID  = nil
   end
 end
 
 local function removePID()
   if CURRENT_PID then
-    local oldID = CURRENT_ID
+    local oldPID = CURRENT_PID
     --select next PID controller
     nextPID()
     --remove old controller
-    pid.remove(oldID, true)
-    if CURRENT_ID == oldID then
+    pid.remove(oldPID, true)
+    if CURRENT_PID == oldPID then
       --It looks like we removed the last controller.
       CURRENT_PID = nil
-      CURRENT_ID  = nil
     end
   end
 end
@@ -138,18 +132,13 @@ local function newPID(file, ...)
   if controller and id then
     --change view
     CURRENT_PID = controller
-    CURRENT_ID  = id
   end
 end
 local function changeID(newID)
-  --removing old registry entry
-  pid.remove(CURRENT_ID, false)
-  --adding new registry entry
-  pid.register(CURRENT_PID, true, newID)
   --change pid.id
   CURRENT_PID.id = newID
-  --change displayed id
-  CURRENT_ID = newID
+  --adding new registry entry
+  pid.register(CURRENT_PID, true)
 end
 
 nextPID()
@@ -272,7 +261,7 @@ uiObject = qui.load(ui, {
   },
   selection = quidgets.textbox{
     text = function()
-      return (CURRENT_ID ~= nil) and tostring(CURRENT_ID) or ""
+      return CURRENT_PID and tostring(pid.getID(CURRENT_PID)) or ""
     end,
     onEdit = function(self, id)
       setPID(id)
@@ -363,7 +352,7 @@ uiObject = qui.load(ui, {
   },
   changeid = quidgets.textbox{
     text = function()
-      return (CURRENT_ID ~= nil) and tostring(CURRENT_ID) or ""
+      return CURRENT_PID and tostring(pid.getID(CURRENT_PID)) or ""
     end,
     onEdit = function(self, newID)
       if CURRENT_PID then
@@ -433,8 +422,6 @@ while true do
     break
   end
 end
-
-
 
 --restore old graphics options
 gpu.setResolution(oldResolutionWidth, oldResolutionHeight)

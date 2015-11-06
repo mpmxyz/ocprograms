@@ -17,18 +17,15 @@ local pid = {}
 local running = {}
 --id -> obj
 local registry = {}
-local reverseRegistry = {} --TODO: implement reverse registry (obj -> id)
 local protectedRegistry = libarmor.protect(registry)
+--obj -> id
+local reverseRegistry = {}
 
 --removes the directory part from the given file path
 local function stripDir(file)
   return string.gsub(file,"^.*%/","")
 end
 
-
-
-
---**TYPES AND VALIDATION**--
 
 --[[
   pid.new(data:table, id, enable:boolean) -> pid:table
@@ -165,7 +162,7 @@ function pid.new(data, id, enable, stopPrevious)
         defaultControl = controlMax or 0
       end
       output = values.get(actuator.get or actuator.initial or defaultControl)
-      --initialize (2/2): calculating a good offset to reflect the current state
+      --initialize (2/2): calculating an offset to reflect the current state
       --output = p * currentError + offset + d * 0
       --offset = output - p * currentError
       offset = (output - p * currentError)
@@ -268,7 +265,10 @@ end
 --The file is loaded with a custom environment which combines the normal environment with a controller table.
 --Writing access is always redirected to the controller table.
 --Reading access is first redirected to the controller and, if the value is nil, it's redirected to the normal environment.
+--Additional parameters are forwarded when the main chunk of the file is called.
 function pid.loadFile(file, enable, ...)
+  checkArg(1, file, "string")
+  checkArg(2, enable, "boolean", "nil")
   local data={}
   --custom environment
   --reading: 1. controller, 2. _ENV
@@ -299,18 +299,43 @@ end
 function pid.get(id)
   return registry[id]
 end
+--pid.getID(pid:table) -> id
+--gets the id for the given PID controller
+function pid.getID(pid)
+  checkArg(1, pid, "table")
+  return reverseRegistry[pid]
+end
 --pid.register(pid:table, [stopPrevious:boolean, id]) -> old pid:table, wasRunning:boolean
---registers a controller
---TODO: description
+--registers a controller using either the id field as a key or the id parameter given to the function
+--A controller can only be registered once and only one controller can be registered with a given id.
+--If one tries to register a controller multiple times it is only registered with the last id.
+--If one tries to register multiple controllers on the same id only the last controller stays.
+--You can order the controller being previously registered with the same id to stop using the parameter "stop".
 function pid.register(self, stopPrevious, id)
+  checkArg(1, self, "table", "nil")
+  checkArg(2, stopPrevious, "boolean", "nil")
   if id == nil and self ~= nil then
     id = self.id
   end
   assert(id ~= nil, "Unable to register: id is nil")
-  --add controller to registry
+  --remove previous controller from reverse registry
   local previous = registry[id]
+  if previous then
+    reverseRegistry[previous] = nil
+  end
+  if self then
+    --remove previous occurences of the new controller
+    local previousID = reverseRegistry[self]
+    if previousID ~= nil then
+      registry[previousID] = nil
+    end
+    --register current controller in the reverse registry
+    reverseRegistry[self] = id
+  end
+  --update registry
   registry[id]   = self
-  --stop previous controller if wanted
+  
+  --convenience: stop previous controller if wanted
   local previousIsRunning = previous and previous:isRunning() or false
   if previous and stopPrevious and previousIsRunning then
     previous:stop()
@@ -318,14 +343,29 @@ function pid.register(self, stopPrevious, id)
   return previous, previousIsRunning
 end
 
---pid.remove(id, [stop:boolean]) -> old pid:table, wasRunning:boolean
---TODO: description
-function pid.remove(id, stop)
+--pid.removeID(id, [stop:boolean]) -> old pid:table, wasRunning:boolean
+--removes the controller with the given id from the registry
+--You can also order the controller to stop using the parameter "stop".
+function pid.removeID(id, stop)
+  checkArg(2, stop, "boolean", "nil")
   return pid.register(nil, stop, id)
+end
+
+--pid.remove(pid:table, [stop:boolean]) -> wasRunning:boolean
+--removes the given controller from the registry
+--You can also order the controller to stop using the parameter "stop".
+function pid.remove(pid, stop)
+  checkArg(1, pid, "table")
+  checkArg(2, stop, "boolean", "nil")
+  local id = pid.getID(pid)
+  local crossCheck, wasRunning = pid.register(nil, stop, id)
+  assert(crossCheck == pid, "Cross check failed!")
+  return wasRunning
 end
 
 --pid.registry() -> proxy:table
 --returns a read only proxy of the registry
+--Read only access ensures that the internal reverse registry stays updated.
 function pid.registry()
   return protectedRegistry
 end

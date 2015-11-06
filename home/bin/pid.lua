@@ -7,10 +7,9 @@
 -----------------------------------------------------
 
 --loading libraries
-local shell=require("shell")
-local serialization=require("serialization")
-local pid=require("pid")
-local values = require("mpm.values")
+local shell         = require("shell")
+local pid           = require("pid")
+local values        = require("mpm.values")
 
 --removes the directory part from the given file path
 local function stripDir(file)
@@ -39,7 +38,7 @@ end
 local function runMonitor(controllers, loadedIDs)
   --load libraries
   local component = require("component")
-  local term = require("term")
+  local term      = require("term")
   --get screen size
   local width,height = component.gpu.getResolution()
   local maxControllers = math.floor(height / 5)
@@ -103,7 +102,7 @@ local controllerGetters = {
     if controller == nil then
       error(("No controller %q found"):format(id), 0)
     end
-    return controller, id
+    return controller
   end,
 }
 
@@ -171,8 +170,8 @@ local actions = {
   run    = noop,
   load   = noop,
   update = noop,
-  unload = function(_, id)
-    pid.remove(id, true)
+  unload = function(controller)
+    pid.remove(controller, true)
   end,
   
   start  = function(controller)
@@ -236,7 +235,7 @@ local function main(parameters, options, subArgs)
         print(accessor(controller, getProxy(param)))        
       else
         --writing
-        local value, msg = serialization.unserialize(after)
+        local value, msg = tonumber(after)
         if msg then
           error(msg, 0)
         end
@@ -246,7 +245,7 @@ local function main(parameters, options, subArgs)
       i = i + 1
     end
     
-    action(controller, id)
+    action(controller)
   end
 end
 
