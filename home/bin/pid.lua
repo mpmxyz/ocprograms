@@ -18,7 +18,7 @@ end
 
 local function printUsage()
   print([[
-Usage: pid <action> [options] file or id
+Usage: pid <action> file or id
            [var=value or =var ...] [--args ...]
        pid debug [ids ...]
  action     what it does
@@ -39,50 +39,54 @@ local function runMonitor(controllers, loadedIDs)
   --load libraries
   local component = require("component")
   local term      = require("term")
+  local event     = require("event")
   --get screen size
   local width,height = component.gpu.getResolution()
-  local maxControllers = math.floor(height / 5)
+  local maxControllers = math.floor(height / 8)
   --limitting the number of displayed controllers
   controllers[maxControllers + 1] = nil
   local init = "Initializing..."
+  --removing some boilerplate code by moving all line width adjustments here
+  local function printf(fstring, ...)
+    local text = string.format(fstring, ...)
+    if #text < width then
+      text=text..(" "):rep(width-1-#text)
+    else
+      text=text:sub(1, width)
+    end
+    print(text)
+  end
   --drawing loop; exit via interrupt
   while true do
     term.setCursor(1,1)
     term.clear()
     for i, controller in ipairs(controllers) do
-      --removing some boilerplate code by moving all line width adjustments here
-      local function printf(fstring, ...)
-        local text = string.format(fstring, ...)
-        if #text < width then
-          text=text..(" "):rep(width-1-#text)
-        else
-          text=text:sub(1, width)
-        end
-        print(text)
-      end
       --display controller information
       local info = controller.info
-      printf("ID:       %s", loadedIDs[i])
+      printf("ID:       %s", tostring(loadedIDs[i]))
       if info then
         printf("Target:   %+d", info.target)
         printf("Current:  %+d", info.value)
         printf("Error:    %+d", info.error)
         printf("change/s: %s" , info.derror and ("%+d"):format(info.derror) or init)
-        printf("PID parts:%+d %+d %+d", info.error * (info.p + info.i * info.dt), info.offset, info.derror and info.derror * info.d or 0)
+        printf("PID parts:%+d %+d %+d", info.rawP or 0, info.rawI or 0, info.rawD or 0)
         printf("Output:   %s" , info.output and ("%+d"):format(info.output) or init)
-        print()
+        printf("")
       else
-        print(init)
-        print()
-        print()
-        print()
-        print()
-        print()
-        print()
+        printf(init)
+        printf("")
+        printf("")
+        printf("")
+        printf("")
+        printf("")
+        printf("")
       end
     end
     --screen updates 4 times a second
-    os.sleep(0.25)
+    local ev = event.pull(0.25)
+    if ev == "interrupted" then
+      break
+    end
   end
 end
 
@@ -231,15 +235,16 @@ local function main(parameters, options, subArgs)
       --All extra parameters are expected to have the form "key=number" or "=key"
       local before, after = param:match("^(.-)%=(.*)$")
       if before == nil then
+        --invalid parameter: ignored
+      elseif before == "" then
         --reading
-        print(accessor(controller, getProxy(param)))        
+        print(after .. "=" .. tostring(accessor(controller, getProxy(after))))
       else
         --writing
-        local value, msg = tonumber(after)
-        if msg then
-          error(msg, 0)
+        local value = tonumber(after)
+        if value then
+          accessor(controller, getProxy(before), value, true)
         end
-        accessor(controller, getProxy(before), value, true)
       end
       --go to next parameter
       i = i + 1
