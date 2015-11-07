@@ -52,7 +52,7 @@ function qevent.new(root, selection, gpu)
         self.selection:selectDown()
       elseif key == keyboard.keys.home then
         self.selection:selectFirst()
-      elseif key == keyboard.keys.ende then
+      elseif key == keyboard.keys["end"] then
         self.selection:selectLast()
       elseif key == keyboard.keys.pageUp then
         self.selection:scroll(1)
