@@ -72,19 +72,27 @@ end
     target=number,          --current setpoint
     error=target-value,     --current error (defined as the given difference)
     lastError=number,       --error of last cycle (used to calculate D term)
-    offset=number,          --current offset, the value of the I term 
-    doffset=i * error * dt, --change in offset (this cycle)
+    controlMin=number,      --lower limit of control output
+    controlMax=number,      --upper limit of control output
+    rawP=p*currentError,        --p component of sum
+    rawI=old offset+i*dt*error, --i component of sum
+    rawD=d*derror,              --d component of sum
+    rawSum=rawP+rawI+rawD,  --sum of PID components (limits not applied)
     
-    derror=(error-lastError) / dt,   --change in error since last cycle
-    output=p*error+d*derror+offset,  --current output, sum of P, I and D terms
+    doffset=i*dt*error or 0,--change in offset (this cycle); can be forced to 0 when output value is on the limit
+    offset=number,          --new offset, after adding doffset
+    
+    derror=(error-lastError) / dt,   --rate of change of error since last cycle
+    output=p*error+d*derror+offset,  --rawSum with output limits applied
   }
 ]]
 function pid.new(controller, id, enable, stopPrevious)
   local lastError
   local offset
-  local dt
-  ---default controller
-  function controller:doStep()
+  --controller:doStep(dt:number)
+  --runs the controller calculation for the given time interval
+  function controller:doStep(dt)
+    checkArg(1, dt, "number")
     --the info table can be used for monitoring and debugging of a system
     local info = {}
     --get constants
@@ -108,10 +116,10 @@ function pid.new(controller, id, enable, stopPrevious)
     info.i  = i
     info.d  = d
     info.dt = dt
-    info.value     = value
-    info.target    = target
-    info.error     = currentError
-    info.lastError = lastError
+    info.value      = value
+    info.target     = target
+    info.error      = currentError
+    info.lastError  = lastError
     info.controlMin = controlMin
     info.controlMax = controlMax
     
@@ -125,14 +133,14 @@ function pid.new(controller, id, enable, stopPrevious)
       local valueD = d * derror
       output = valueP + valueI + valueD
       --save raw values
-      info.rawP = valueP
-      info.rawI = valueI
-      info.rawD = valueD
+      info.rawP   = valueP
+      info.rawI   = valueI
+      info.rawD   = valueD
       info.rawSum = output
       
       --now clamp it within range and decide if it is safe to do the integration
       local doIntegration = true
-      local doffset = i * currentError * dt
+      local doffset = i * dt * currentError
       if controlMin and output < controlMin then
         output = controlMin
         doIntegration  = (doffset > 0)
@@ -164,7 +172,12 @@ function pid.new(controller, id, enable, stopPrevious)
       --offset = output - p * currentError
       offset = (output - p * currentError)
       
+      
       --more info values
+      info.rawP    = p * currentError
+      info.rawI    = offset
+      info.rawD    = 0
+      info.rawSum  = output
       info.doffset = 0
       info.derror  = 0
     end
@@ -182,7 +195,8 @@ function pid.new(controller, id, enable, stopPrevious)
     self.info = info
   end
   
-  ---forcing controller states
+  --controller:forceOffset(newOffset:number)
+  --changes the internal offset of the controller (in case you feel the need for a manual override...)
   function controller:forceOffset(newOffset)
     checkArg(1, newOffset, "number")
     offset = newOffset
@@ -193,12 +207,14 @@ function pid.new(controller, id, enable, stopPrevious)
     --remove controller from running list
     running[controller] = nil
     --calculate new delta t in seconds
-    dt = 1.0 / values.get(controller.frequency)
+    local dt = 1.0 / values.get(controller.frequency)
     --calculate output
-    controller:doStep()
+    controller:doStep(dt)
     --initiate next step; this part is never reached if controller execution failed
     running[controller] = event.timer(dt, callback)
   end
+  --controller:start()
+  --starts the controller
   function controller:start()
     --avoid multiple timers running for one pid controller
     self:stop()
@@ -208,9 +224,13 @@ function pid.new(controller, id, enable, stopPrevious)
     --run controller
     callback()
   end
+  --controller:isRunning() -> boolean
+  --returns true if the controller is already running
   function controller:isRunning()
     return running[self] ~= nil
   end
+  --controller:stop()
+  --stops the controller
   function controller:stop()
     local timerID = running[self]
     if timerID then
@@ -222,9 +242,14 @@ function pid.new(controller, id, enable, stopPrevious)
   end
   
   ---validation
+  --controller:isValid() -> true or false, errorText:string
+  --returns true if the controller seems to be valid
+  --returns false and an error message if the controller is invalid
   function controller:isValid()
     return pcall(self.assertValid, self)
   end
+  --controller:assertValid()
+  --errors if the controller is not valid
   function controller:assertValid()
     --checking controller contents (errors during execution are hidden in event.log)
     values.checkTable(self.actuator,        "actuator")
@@ -244,7 +269,15 @@ function pid.new(controller, id, enable, stopPrevious)
     values.checkNumber(self.frequency, "frequency")
   end
   ---controller registry
+  --controller:getID() -> id
+  --see pid.getID with pid == controller
+  controller.getID    = pid.getID
+  --controller:register([stopPrevious:boolean, id]) -> old pid:table, wasRunning:boolean
+  --see pid.register with pid == controller
   controller.register = pid.register
+  --controller:remove([stop:boolean]) -> wasRunning:boolean
+  --see pid.remove with pid == controller
+  controller.remove   = pid.remove
   
   ---initialization
   local previous, previousIsRunning
@@ -296,9 +329,9 @@ function pid.get(id)
 end
 --pid.getID(pid:table) -> id
 --gets the id for the given PID controller
-function pid.getID(pid)
-  checkArg(1, pid, "table")
-  return reverseRegistry[pid]
+function pid.getID(self)
+  checkArg(1, self, "table")
+  return reverseRegistry[self]
 end
 --pid.register(pid:table, [stopPrevious:boolean, id]) -> old pid:table, wasRunning:boolean
 --registers a controller using either the id field as a key or the id parameter given to the function
