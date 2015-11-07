@@ -19,6 +19,8 @@ tar --numeric-owner -cf tars/lib.tar lib
 ##smaller packages
 #tar.tar
 tar --numeric-owner -cf tars/tar.tar home/bin/tar.lua home/lib/mpm/auto_progress.lua usr/man/tar.man
+#purgelib.tar
+tar --numeric-owner -cf tars/purgelib.tar home/bin/purgelib.lua usr/man/purgelib.man
 #crunch.tar
 tar --numeric-owner -cf tars/crunch.tar home/bin/crunch.lua home/lib/mpm/cache.lua home/lib/mpm/lib.lua home/lib/mpm/hashset.lua home/lib/mpm/sets.lua home/lib/mpm/setset.lua home/lib/crunch home/lib/parser usr/man/crunch.man
 #qui.tar

@@ -1,0 +1,13 @@
+NAME
+  purgelib - removing entries from package.loaded
+  
+SYNOPSIS
+  purgelib libnames...
+  
+DESCRIPTION
+  This program removes entries from the package.loaded table.
+  If you are developping a library and are tired of restarting your computer whenever you changed something this might be something for you.
+  
+EXAMPLES
+  purgelib mpm.textgfx
+    removes the library mpm.textgfx
