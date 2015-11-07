@@ -59,7 +59,7 @@ EXAMPLES
   pid debug reactor.pid turbine.pid
     displays debug information of two controllers in one screen
     Each controller needs 8 lines on the screen. Debug information isn't displayed if there isn't enough space left.
-    You can leave the debug screen by doing an interrupt. (Ctrl + Alt + C)
+    You can leave the debug screen by doing a soft interrupt. (Ctrl + C)
     
   pid stop turbine.pid
     stops the given controller

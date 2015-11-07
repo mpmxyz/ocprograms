@@ -57,9 +57,9 @@ local function runMonitor(controllers, loadedIDs)
     print(text)
   end
   --drawing loop; exit via interrupt
+  term.clear()
   while true do
     term.setCursor(1,1)
-    term.clear()
     for i, controller in ipairs(controllers) do
       --display controller information
       local info = controller.info
