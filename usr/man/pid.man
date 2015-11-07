@@ -1,56 +1,68 @@
 NAME
-  pid - PID control for Minecraft
+  pid - PID controllers for Minecraft
   
 SYNOPSIS
-  pid [options] FILES... or IDs...
-  pid --target ID [value]
+  pid <action> file or id [var=value or =var ...] [--args ...]
+  pid debug [ids ...]
   
 DESCRIPTION
   Set up your PID controllers the easy way:
-  Just create a controller file, run "pid yourfile.pid" and its running in the background.
+  Just create a controller file and run "pid run yourfile.pid". You controller is running in the background.
   The file name of a controller is used as an ID when none is given in the file.
-  The program returns a list of all controllers loaded during execution.
+  You can show and modify values using =var or var=value respectively:
+   var                 meaning
+     target    tgt  t    target value
+     frequency freq f    update frequency in Hz
+     p                   proportional factor
+     i                   integral factor
+     d                   derivative factor
+     min                 minimum output value
+     max                 maximum output value
   
-OPTIONS
-  Without an option the given parameters are treated as controller files that are loaded and started.
+  The actions "run" and "load" also accept the option "--args" followed by arguments that should be forwarded to the file being loaded.
   
-  --load
-    only loads the files but does not start the controllers
-  --unload
-    stops and unregisters all controllers identified by the given IDs
+ACTIONS
+  pid needs an action parameter telling it what it has to do.
+  
+  run
+    loads and starts a PID
+  load
+    loads a PID but doesn't start it
+  update
+    updates only (to update PID vars)
+  unload
+    stops and unregisters a PID
+  start
+    (re-)starts a PID
+  stop
+    stops a PID
     
-  --start
-  --stop
-    These commands start and stop all given controllers
+  debug
+    shows a debug screen - the most important parameters are displayed for each given controller
   
-  --debug
-    enters debug mode - the most important parameters are displayed for each given controller
-    
-  --target
-    If no value is given it displays the current target / setpoint for the given controller.
-    Else it sets the given value as the new target / setpoint of the controller.
 EXAMPLES
-  pid reactor.pid
+  pid run reactor.pid
     loads and starts the controller from file "reactor.pid"
     It's assigned the ID "reactor.pid" unless there is an overriding assignment in the file.
     
-  pid --load /pids/turbine.pid
+  pid load /pids/turbine.pid --args bada4648-3559-4784-b3c7-06c146d9dc3b
     loads the controller file "/pids/turbine.pid"
+    The string argument "bada4648-3559-4784-b3c7-06c146d9dc3b" is used when loading the file.
     The controller is assigned the ID "turbine.pid" unless there is an overriding assignment in the file.
 
-  pid --start turbine.pid
+  pid start turbine.pid
     starts the controller "turbine.pid"
     
-  pid --target turbine.pid 900
+  pid update turbine.pid target=900
     reduces the speed of the turbine to 900 rpm
     
-  pid --debug reactor.pid turbine.pid
+  pid debug reactor.pid turbine.pid
     displays debug information of two controllers in one screen
-    Each controller needs 5 lines on the screen. Debug information isn't displayed if there isn't enough space left.
-    You can leave the debug screen by doing an interrupt. (Ctrl + Alt + C)
+    Each controller needs 8 lines on the screen. Debug information isn't displayed if there isn't enough space left.
+    You can leave the debug screen by doing a soft interrupt. (Ctrl + C)
     
-  pid --stop turbine.pid
+  pid stop turbine.pid
     stops the given controller
     
-  pid --unload reactor.pid
+  pid unload reactor.pid
     stops and unregisters the controller

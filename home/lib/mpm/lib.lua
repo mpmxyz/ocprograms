@@ -43,9 +43,12 @@ return {
       if path then
         dir, prefix, ext, subPath = path:match("^(.-)([^/]*)%?([^/]*)(.-)$")
         libPrefix = ""
+        if (dir:sub(1, 2) ~= "./" and dir ~= "") and not (filesystem.exists(dir) and filesystem.isDirectory(dir)) then
+          return
+        end
       end
       --don't search working dir
-      if dir and prefix and ext and ((dir ~= "./" and dir ~= "") or includeWorkingDir) then
+      if dir and prefix and ext and ((dir:sub(1, 2) ~= "./" and dir ~= "") or includeWorkingDir) then
         for file in filesystem.list(dir) do
           if file:sub(1, #prefix) == prefix then
             if file:sub(-#ext, -1) == ext then
