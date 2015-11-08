@@ -20,7 +20,13 @@ function qevent.new(root, selection, gpu)
     root = root,
     selection = selection,
     gpu = gpu,
+    screenAddress = assert(gpu.getScreen(), "UI needs a screen!"),
+    validKeyboards = {},
   }
+  
+  for _, address in ipairs(component.invoke(processor.screenAddress, "getKeyboards")) do
+    processor.validKeyboards[address] = true
+  end
   --processor:onEvent(event, ...) -> event, ... or "qui_event", event, ...
   --takes event data, does qui actions if applicable
   --It returns all arguments if nothing happened. If something happened it returns the string "qui_event" followed by all arguments.
@@ -28,17 +34,12 @@ function qevent.new(root, selection, gpu)
     --get event data
     local event, source, x, y, direction = ...
     --get component information
-    local screenAddress = self.gpu.getScreen()
-    local isValidKeyboard = false
-    for _, address in ipairs(component.invoke(screenAddress, "getKeyboards")) do
-      isValidKeyboard = isValidKeyboard or (address == source)
-    end
     --do event processing
-    if event == "touch" and source == screenAddress then
+    if event == "touch" and source == self.screenAddress then
       self.root:click(x, y, 1)
-    elseif event == "scroll" and source == screenAddress then
+    elseif event == "scroll" and source == self.screenAddress then
       self.root:scroll(x, y, direction)
-    elseif event == "key_down" and isValidKeyboard then
+    elseif event == "key_down" and self.validKeyboards[source or ""] then
       local key = y
       if key == keyboard.keys.enter then
         self.selection:click(1)

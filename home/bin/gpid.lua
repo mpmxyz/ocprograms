@@ -265,6 +265,15 @@ uiObject = qui.load(ui, {
     onEdit = function(self, id)
       setPID(id)
     end,
+    onScroll = function(self, x, y, direction)
+      if direction < 0 then
+        --scroll down
+        nextPID()
+      else
+        --scroll up
+        previousPID()
+      end
+    end,
   },
   r = {
     text = ">>>",
@@ -380,15 +389,6 @@ uiObject = qui.load(ui, {
   imageOutput = newGraphLine("output"),
   
 })
-uiObject.onScroll = function(self, x, y, direction)
-  if direction < 0 then
-    --scroll down
-    nextPID()
-  else
-    --scroll up
-    previousPID()
-  end
-end
 
 
 --one update is enough (nothing will be moved after that)
