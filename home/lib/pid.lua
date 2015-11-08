@@ -270,13 +270,13 @@ function pid.new(controller, id, enable, stopPrevious)
   end
   ---controller registry
   --controller:getID() -> id
-  --see pid.getID with pid == controller
+  --see pid.getID
   controller.getID    = pid.getID
   --controller:register([stopPrevious:boolean, id]) -> old pid:table, wasRunning:boolean
-  --see pid.register with pid == controller
+  --see pid.register
   controller.register = pid.register
   --controller:remove([stop:boolean]) -> wasRunning:boolean
-  --see pid.remove with pid == controller
+  --see pid.remove
   controller.remove   = pid.remove
   
   ---initialization
@@ -322,18 +322,18 @@ end
 
 
 ---controller registry
---pid.get(id) -> pid:table
---gets the PID controller for the given id
+--pid.get(id) -> controller:table
+--returns the controller registered with the given id
 function pid.get(id)
   return registry[id]
 end
---pid.getID(pid:table) -> id
---gets the id for the given PID controller
+--pid.getID(controller:table) -> id
+--gets the id the given PID controller is registered with
 function pid.getID(self)
   checkArg(1, self, "table")
   return reverseRegistry[self]
 end
---pid.register(pid:table, [stopPrevious:boolean, id]) -> old pid:table, wasRunning:boolean
+--pid.register(controller:table, [stopPrevious:boolean, id]) -> old pid:table, wasRunning:boolean
 --registers a controller using either the id field as a key or the id parameter given to the function
 --A controller can only be registered once and only one controller can be registered with a given id.
 --If one tries to register a controller multiple times it is only registered with the last id.
@@ -379,7 +379,7 @@ function pid.removeID(id, stop)
   return pid.register(nil, stop, id)
 end
 
---pid.remove(pid:table, [stop:boolean]) -> wasRunning:boolean
+--pid.remove(controller:table, [stop:boolean]) -> wasRunning:boolean
 --removes the given controller from the registry
 --You can also order the controller to stop using the parameter "stop".
 function pid.remove(self, stop)
