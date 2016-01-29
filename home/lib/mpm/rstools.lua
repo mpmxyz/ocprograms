@@ -201,7 +201,7 @@ function rstools.digital(typ, address, side, color)
   return newTable(function(value)
     checkArg(1, value, permittedType, "nil")
     return (func(value))
-  end)
+  end, typ)
 end
 
 return rstools
